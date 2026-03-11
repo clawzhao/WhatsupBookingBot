@@ -23,8 +23,16 @@ function resetModule(moduleName) {
 global.expect = expect;
 global.resetModule = resetModule;
 
+// Backup and restore config
+const configPath = path.join(__dirname, '../config/restaurant.json');
+let originalConfig = null;
+
 // Root hooks
 before(function() {
+  // Backup original config if it exists
+  if (fs.existsSync(configPath)) {
+    originalConfig = fs.readFileSync(configPath, 'utf8');
+  }
   setupTestConfig();
 });
 
@@ -38,17 +46,41 @@ after(function(done) {
         try {
           booking.db.close((err) => {
             if (err) console.error('DB close error:', err.message);
+            
+            // Restore original config
+            if (originalConfig) {
+              fs.writeFileSync(configPath, originalConfig, 'utf8');
+              console.log('Original config restored');
+            }
+            
             done();
           });
         } catch (e) {
           console.error('DB close exception:', e.message);
+          
+          // Still restore config even if DB close fails
+          if (originalConfig) {
+            fs.writeFileSync(configPath, originalConfig, 'utf8');
+            console.log('Original config restored');
+          }
+          
           done();
         }
       }, 100);
     } else {
+      // Restore original config even if no DB
+      if (originalConfig) {
+        fs.writeFileSync(configPath, originalConfig, 'utf8');
+        console.log('Original config restored');
+      }
       done();
     }
   } catch (e) {
+    // Restore config before reporting error
+    if (originalConfig) {
+      fs.writeFileSync(configPath, originalConfig, 'utf8');
+      console.log('Original config restored');
+    }
     done();
   }
 });

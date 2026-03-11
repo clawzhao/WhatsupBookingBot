@@ -74,7 +74,7 @@ function initWhatsApp() {
     }
 
     // Welcome or Help message
-    const helpMsg = `Welcome to ${config.name}! 🍽️
+    const helpMsg = `Welcome to ${config.restaurant.name}! 🍽️
 
 Commands you can use:
 - "menu": View our menu and prices.

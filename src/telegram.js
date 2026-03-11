@@ -65,32 +65,38 @@ function initTelegram(token) {
 
   // Calendar with today's date highlighted
   function generateCalendar(year, month, selectedDate = null) {
-    const firstDay = moment([year, month]).startOf('month');
-    const lastDay = moment([year, month]).endOf('month');
+    const config = loadConfig();
+    const timezone = config?.restaurant?.timezone || 'UTC';
+    const firstDay = moment.tz([year, month], timezone).startOf('month');
+    const lastDay = moment.tz([year, month], timezone).endOf('month');
     const startWeekday = firstDay.day();
     const daysInMonth = lastDay.date();
-    const today = moment().startOf('day');
-    const maxDate = moment().add(90, 'days');
+    const today = moment.tz(timezone).startOf('day');
+    const maxDate = moment.tz(timezone).add(90, 'days');
 
     const buttons = [];
     // Weekday headers
     buttons.push(['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => ({ text: `<b>${d}</b>`, callback_data: 'ignore' })));
 
     // Empty cells
+    let row = [];
     for (let i = 0; i < startWeekday; i++) {
-      buttons.push([{ text: ' ', callback_data: 'ignore' }]);
+      row.push({ text: ' ', callback_data: 'ignore' });
     }
 
     // Days
-    let row = [];
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = moment([year, month, day]);
+      const date = moment.tz([year, month, day], timezone);
       const dateStr = date.format('YYYY-MM-DD');
       const isToday = date.isSame(today, 'day');
       const isSelected = selectedDate === dateStr;
 
-      if (date.isBefore(today, 'day') || date.isAfter(maxDate, 'day')) {
-        row.push({ text: `·${day}·`, callback_data: 'ignore' });
+      if (date.isBefore(today, 'day')) {
+        // Past dates are greyed out
+        row.push({ text: `▪${day}▪`, callback_data: 'ignore' });
+      } else if (date.isAfter(maxDate, 'day')) {
+        // Dates beyond 90 days are greyed out
+        row.push({ text: `▪${day}▪`, callback_data: 'ignore' });
       } else {
         let label = `${day}`;
         if (isToday) label = `✅${day}`;
@@ -105,9 +111,17 @@ function initTelegram(token) {
       }
     }
 
+    // Complete last row with empty cells if needed
+    while (row.length > 0 && row.length < 7) {
+      row.push({ text: ' ', callback_data: 'ignore' });
+    }
+    if (row.length === 7) {
+      buttons.push(row);
+    }
+
     // Navigation
-    const prevMonth = moment([year, month]).subtract(1, 'month');
-    const nextMonth = moment([year, month]).add(1, 'month');
+    const prevMonth = moment.tz([year, month], timezone).subtract(1, 'month');
+    const nextMonth = moment.tz([year, month], timezone).add(1, 'month');
     buttons.push([
       { text: '◀️', callback_data: `calendar_${prevMonth.year()}_${prevMonth.month()}` },
       { text: `<b>${moment([year, month]).format('MMM YYYY')}</b>`, callback_data: 'ignore' },
@@ -122,8 +136,10 @@ function initTelegram(token) {
   // Time slots with smart suggestion
   function generateTimeSlots(dateStr, includeBack = true) {
     const config = loadConfig();
-    const dayName = moment(dateStr, 'YYYY-MM-DD').format('dddd');
-    const dayHours = config.openingHours[dayName];
+    const restaurant = config?.restaurant || {};
+    const timezone = restaurant.timezone || 'UTC';
+    const dayName = moment.tz(dateStr, 'YYYY-MM-DD', timezone).format('dddd');
+    const dayHours = restaurant.openingHours?.[dayName];
 
     if (!dayHours) {
       return { inline_keyboard: [[{ text: `Closed on ${dayName}`, callback_data: 'ignore' }]] };
@@ -133,25 +149,40 @@ function initTelegram(token) {
     const close = dayHours.close.split(':').map(Number);
     const startMin = open[0] * 60 + open[1];
     const endMin = close[0] * 60 + close[1];
-    const slotDuration = config.slotDuration || 30;
+    const slotDuration = restaurant.slotDuration || 30;
 
-    // Smart suggestion: if today, suggest 12:00 if before noon, 18:00 if before 6pm
-    const now = moment();
-    const isToday = moment(dateStr, 'YYYY-MM-DD').isSame(now, 'day');
+    // Check if date is today - using restaurant's timezone
+    const now = moment.tz(timezone);
+    const selectedDate = moment.tz(dateStr, 'YYYY-MM-DD', timezone);
+    const isToday = selectedDate.isSame(now, 'day');
+    const currentMin = isToday ? now.hours() * 60 + now.minutes() : -1; // -1 means not today
     let suggestedMin = null;
-    if (isToday) {
-      const currentMin = now.hours() * 60 + now.minutes();
-      if (currentMin < 12 * 60) suggestedMin = 12 * 60;
-      else if (currentMin < 18 * 60) suggestedMin = 18 * 60;
-    }
 
     const buttons = [];
+    let firstFutureMin = null;
+
     for (let min = startMin; min < endMin; min += slotDuration) {
+      // If today, skip times that have already passed (add 1 hour buffer for booking)
+      if (isToday && min < currentMin + 60) {
+        continue; // Skip past times
+      }
+
+      // Track first available future time for suggestion
+      if (firstFutureMin === null) {
+        firstFutureMin = min;
+        suggestedMin = min;
+      }
+
       const hh = Math.floor(min / 60).toString().padStart(2, '0');
       const mm = (min % 60).toString().padStart(2, '0');
       const timeStr = `${hh}:${mm}`;
       const label = (min === suggestedMin) ? `⭐ ${timeStr}` : timeStr;
       buttons.push([{ text: label, callback_data: `time_${dateStr}_${timeStr}` }]);
+    }
+
+    // If today but no future times available
+    if (isToday && buttons.length === 0) {
+      return { inline_keyboard: [[{ text: '❌ No available slots for today', callback_data: 'ignore' }], [{ text: '🔙 Back to Date', callback_data: 'back_to_date' }]] };
     }
 
     if (includeBack) {
@@ -179,18 +210,19 @@ function initTelegram(token) {
 
   // Callback query handler
   bot.on('callback_query', async (query) => {
-    const chatId = query.message.chat.id;
-    const data = query.data;
-    const userId = query.from.id; // use the user who pressed the button
+    try {
+      const chatId = query.message.chat.id;
+      const data = query.data;
+      const userId = query.from.id; // use the user who pressed the button
 
-    if (!isAllowedUser(query.message.chat)) {
-      await bot.answerCallbackQuery(query.id, { text: '⛔ Not authorized', show_alert: true });
-      return;
-    }
+      if (!isAllowedUser(query.message.chat)) {
+        await bot.answerCallbackQuery(query.id, { text: '⛔ Not authorized', show_alert: true });
+        return;
+      }
 
-    await bot.answerCallbackQuery(query.id);
+      await bot.answerCallbackQuery(query.id);
 
-    if (data === 'ignore' || data === 'error') return;
+      if (data === 'ignore' || data === 'error') return;
 
     // Main menu
     if (data === 'main_menu') {
@@ -249,7 +281,7 @@ function initTelegram(token) {
       userSessions[chatId] = session;
 
       const config = loadConfig();
-      const maxParty = config.maxPartySize || 10;
+      const maxParty = config?.restaurant?.maxPartySize || 10;
       const partyRows = [];
       for (let i = 1; i <= Math.min(maxParty, 6); i++) {
         partyRows.push([{ text: `${i} ${i === 1 ? 'person' : 'people'}`, callback_data: `party_${i}` }]);
@@ -429,12 +461,22 @@ function initTelegram(token) {
       });
       return;
     }
+    } catch (err) {
+      console.error('[Callback Query] Error:', err.message);
+      console.error(err.stack);
+      try {
+        bot.answerCallbackQuery(query.id, { text: '❌ Error processing request', show_alert: true });
+      } catch (e) {
+        console.error('[Callback Query] Error sending error message:', e.message);
+      }
+    }
   });
 
   // Text message handler (main menu buttons and typed fallback)
   bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
-    const text = (msg.text || '').trim();
+    try {
+      const chatId = msg.chat.id;
+      const text = (msg.text || '').trim();
 
     if (!text) return;
 
@@ -546,6 +588,7 @@ function initTelegram(token) {
     // Typed fallback during active session
     const session = userSessions[chatId];
     const config = loadConfig();
+    const restaurant = config?.restaurant || {};
 
     // Date typing
     if (session.step === 'booking_date') {
@@ -555,14 +598,16 @@ function initTelegram(token) {
           bot.sendMessage(chatId, 'Invalid date format. Use YYYY-MM-DD.');
           return;
         }
-        const today = moment().startOf('day');
-        const maxDate = moment().add(90, 'days');
-        if (date.isBefore(today) || date.isAfter(maxDate)) {
+        const timezone = restaurant.timezone || 'UTC';
+        const today = moment.tz(timezone).startOf('day');
+        const maxDate = moment.tz(timezone).add(90, 'days');
+        const selectedDate = moment(text, 'YYYY-MM-DD', true);
+        if (selectedDate.isBefore(today) || selectedDate.isAfter(maxDate)) {
           bot.sendMessage(chatId, 'Date must be within the next 90 days.');
           return;
         }
         const dayName = date.format('dddd');
-        if (!config.openingHours[dayName]) {
+        if (!restaurant.openingHours?.[dayName]) {
           bot.sendMessage(chatId, `Closed on ${dayName}. Choose another date.`);
           return;
         }
@@ -583,7 +628,7 @@ function initTelegram(token) {
         const [hh, mm] = text.split(':').map(Number);
         const timeMin = hh * 60 + mm;
         const dayName = moment(session.date, 'YYYY-MM-DD').format('dddd');
-        const dayHours = config.openingHours[dayName];
+        const dayHours = restaurant.openingHours?.[dayName];
         if (!dayHours) {
           bot.sendMessage(chatId, `Closed on ${dayName}. Pick another date.`);
           return;
@@ -592,20 +637,37 @@ function initTelegram(token) {
         const close = dayHours.close.split(':').map(Number);
         const openMin = open[0] * 60 + open[1];
         const closeMin = close[0] * 60 + close[1];
-        const slotDuration = config.slotDuration || 30;
+        const slotDuration = restaurant.slotDuration || 30;
+        
         if (timeMin < openMin || timeMin >= closeMin) {
           bot.sendMessage(chatId, `Time must be between ${dayHours.open} and ${dayHours.close}.`);
           return;
         }
+        
         if ((timeMin - openMin) % slotDuration !== 0) {
           bot.sendMessage(chatId, `Choose a time on a ${slotDuration}-minute interval.`);
           return;
         }
+        
+        // If today, check if time is in the future (+ 1 hour buffer)
+        const timezone = restaurant.timezone || 'UTC';
+        const now = moment.tz(timezone);
+        const selectedDate = moment.tz(session.date, 'YYYY-MM-DD', timezone);
+        const isToday = selectedDate.isSame(now, 'day');
+        if (isToday) {
+          const currentMin = now.hours() * 60 + now.minutes();
+          if (timeMin < currentMin + 60) {
+            bot.sendMessage(chatId, `Time must be at least 1 hour from now. Next available: ${dayHours.open}`);
+            return;
+          }
+        }
+        
         session.time = text;
         session.step = 'booking_party';
         userSessions[chatId] = session;
 
-        bot.sendMessage(chatId, `📅 Date: ${session.date}\n⏰ Time: ${text}\n\nHow many people? (1-${config.maxPartySize || 10})`);
+        const maxPartySize = restaurant.maxPartySize || 10;
+        bot.sendMessage(chatId, `📅 Date: ${session.date}\n⏰ Time: ${text}\n\nHow many people? (1-${maxPartySize})`);
         return;
       }
     }
@@ -662,6 +724,15 @@ function initTelegram(token) {
 
     // Default: show main menu
     showMainMenu(chatId);
+    } catch (err) {
+      console.error('[Message Handler] Error:', err.message);
+      console.error(err.stack);
+      try {
+        bot.sendMessage(chatId, '❌ An error occurred. Please try again.');
+      } catch (e) {
+        console.error('[Message Handler] Error sending error message:', e.message);
+      }
+    }
   });
 
   function showCalendar(chatId, year, month) {

@@ -45,14 +45,15 @@ function parseTime(timeStr) {
 
 function validateBooking(date, time, partySize) {
   const config = loadConfig();
-  if (!config) return { valid: false, message: 'Configuration error.' };
+  if (!config || !config.restaurant) return { valid: false, message: 'Configuration error.' };
 
-  if (partySize > config.maxPartySize) {
-    return { valid: false, message: `Maximum party size is ${config.maxPartySize}.` };
+  const restaurant = config.restaurant;
+  if (partySize > restaurant.maxPartySize) {
+    return { valid: false, message: `Maximum party size is ${restaurant.maxPartySize}.` };
   }
 
   const dayName = getDayName(date);
-  const dayHours = config.openingHours[dayName];
+  const dayHours = restaurant.openingHours[dayName];
 
   if (!dayHours) {
     return { valid: false, message: `We are closed on ${dayName}s.` };
@@ -69,8 +70,8 @@ function validateBooking(date, time, partySize) {
 
   // Check slot duration
   const slotMin = parseInt(reqTimeStr.split(':')[1], 10);
-  if (slotMin % config.slotDuration !== 0) {
-    return { valid: false, message: `Bookings must be at ${config.slotDuration}-minute intervals.` };
+  if (slotMin % restaurant.slotDuration !== 0) {
+    return { valid: false, message: `Bookings must be at ${restaurant.slotDuration}-minute intervals.` };
   }
 
   return { valid: true };

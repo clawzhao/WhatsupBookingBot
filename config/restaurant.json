@@ -2,7 +2,11 @@
   "restaurant": {
     "name": "The Cozy Corner",
     "phone": "+1234567890",
-    "timezone": "America/New_York",
+    "timezone": "Asia/Singapore",
+    "defaultHours": {
+      "open": "10:00",
+      "close": "21:00"
+    },
     "openingHours": {
       "Monday": { "open": "09:00", "close": "22:00" },
       "Tuesday": { "open": "09:00", "close": "22:00" },
