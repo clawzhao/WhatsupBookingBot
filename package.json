@@ -1,0 +1,40 @@
+{
+  "name": "whatsapp-booking-demo",
+  "version": "1.0.0",
+  "description": "Restaurant booking bot supporting WhatsApp and Telegram",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "mocha --file test/setup.js \"test/**/*.test.js\" --timeout 10000",
+    "test:unit": "mocha --file test/setup.js \"test/unit/**/*.test.js\"",
+    "test:e2e": "NODE_ENV=test mocha --file test/setup.js \"test/e2e/**/*.test.js\" --timeout 20000",
+    "pretest": "mkdir -p data"
+  },
+  "keywords": [
+    "whatsapp",
+    "telegram",
+    "booking",
+    "restaurant",
+    "bot",
+    "express"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "moment-timezone": "^0.6.0",
+    "node-telegram-bot-api": "^0.67.0",
+    "qrcode-terminal": "^0.12.0",
+    "sqlite3": "^5.1.7",
+    "whatsapp-web.js": "^1.34.6"
+  },
+  "devDependencies": {
+    "chai": "^5.2.0",
+    "chai-http": "^4.3.0",
+    "mocha": "^11.0.4",
+    "sinon": "^20.0.0",
+    "supertest": "^7.0.0"
+  }
+}

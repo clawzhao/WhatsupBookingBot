@@ -1,0 +1,26 @@
+Build a WhatsApp booking system demo for a restaurant.
+
+Tech: Node.js + Express, SQLite, WhatsApp (Twilio or whatsapp-web.js).
+
+Structure:
+- src/index.js (server)
+- src/whatsapp.js (handler)
+- src/booking.js (logic)
+- src/menu.js (logic)
+- src/config.js (loader)
+- config/restaurant.json (sample: "The Cozy Corner")
+- data/bookings.db (sqlite)
+- public/ (admin dashboard, HTML/JS)
+- package.json, .env.example, .gitignore, README.md
+
+Features:
+1. Menu: list dishes, categories, prices from config
+2. Booking: slot management (open hours, 30min slots), validate, persist
+3. WhatsApp bot: responds to "menu", "book [N] on [day] at [time]", "cancel [id]"
+4. Admin dashboard: view bookings, edit menu
+
+Config JSON includes: restaurant name, phone, timezone, openingHours (per-day open/close), slotDuration, maxPartySize, menu array.
+
+Deliver working code, clear error handling, comments, and setup instructions.
+
+Work autonomously; do not ask questions.
