@@ -3,6 +3,7 @@ const { getMenuText } = require('./menu');
 const { createBooking, cancelBooking, getAllBookings } = require('./booking');
 const { loadConfig } = require('./config');
 const moment = require('moment-timezone');
+const http = require('http');
 
 console.log('[Telegram] Bot module loaded - v2'); // version marker
 
@@ -474,6 +475,7 @@ function initTelegram(token) {
 
   // Text message handler (main menu buttons and typed fallback)
   bot.on('message', async (msg) => {
+    console.log('[Telegram] Message received:', { chatId: msg.chat.id, text: msg.text, from: msg.from.username || msg.chat.id });
     try {
       const chatId = msg.chat.id;
       const text = (msg.text || '').trim();
@@ -579,8 +581,71 @@ function initTelegram(token) {
       }
     }
 
-    // If we reach here and there's no active session, show main menu
+    // If we reach here and there's no active session, forward to chatbot (or show main menu)
     if (!userSessions[chatId]) {
+      try {
+        const chatbotUrl = process.env.CHATBOT_URL || 'http://localhost:8000';
+        const postData = `question=${encodeURIComponent(text)}`;
+        const url = new URL('/query', chatbotUrl);
+        const response = await new Promise((resolve, reject) => {
+          const req = http.request(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': Buffer.byteLength(postData)
+            }
+          }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+          });
+          req.on('error', reject);
+          req.end(postData);
+        });
+        
+        if (response.statusCode === 200) {
+          const data = JSON.parse(response.body);
+          const answer = data.answer || 'Sorry, I could not find an answer.';
+          
+          // Check if this is an "I don't know" response
+          const isUnknown = answer.toLowerCase().includes("i don't know") || 
+                            answer.toLowerCase().includes("i don't have") ||
+                            answer.toLowerCase().includes("no relevant") ||
+                            !answer.trim();
+          
+          if (isUnknown) {
+            // Save unanswered question for staff review
+            try {
+              const { saveUnansweredQuestion } = require('./unanswered');
+              await saveUnansweredQuestion(String(chatId), text);
+              console.log(`[Telegram] Saved unanswered question: "${text}"`);
+            } catch (err) {
+              console.error('Error saving question:', err);
+            }
+            
+            // Send polite message instead of "I don't know"
+            const politeMessage = 
+              'Thank you for your question! 😊\n\n' +
+              'Let me check this and I will get back to you soon. ' +
+              'Our team will review your question and respond as soon as possible.\n\n' +
+              'You can also call us at +1234567890 for immediate assistance.';
+            
+            await bot.sendMessage(chatId, politeMessage);
+            console.log(`[Telegram] Sent polite message to ${chatId}`);
+          } else {
+            // Send the actual answer
+            await bot.sendMessage(chatId, answer);
+            console.log(`[Telegram] Sent answer to ${chatId}`);
+          }
+        } else {
+          console.error('Chatbot error:', response.statusCode, response.body);
+          await bot.sendMessage(chatId, 'Chatbot service error. Please try again.');
+        }
+      } catch (err) {
+        console.error('Chatbot query failed:', err);
+        await bot.sendMessage(chatId, 'Chatbot is currently unavailable.');
+      }
+      // Always show main menu after answering
       showMainMenu(chatId);
       return;
     }
