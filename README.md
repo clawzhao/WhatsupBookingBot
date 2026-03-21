@@ -136,7 +136,32 @@ npm start
 # Or: node src/index.js
 ```
 
-### Running Both Services
+### Quick Launch
+
+The easiest way to start both services is using the provided startup script:
+
+```bash
+# Start both WhatsApp and Telegram services
+./start.sh
+
+# Start in background
+./start.sh --background
+
+# Start only WhatsApp service
+./start.sh --python-only
+
+# Start only Telegram service
+./start.sh --node-only
+
+# Show help
+./start.sh --help
+```
+
+**Output Logs:**
+- Python service: `logs/python.log`
+- Node.js service: `logs/node.log`
+
+## Running Both Services (Manual)
 
 **Terminal 1 - WhatsApp (Python):**
 ```bash
