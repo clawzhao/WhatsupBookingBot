@@ -6,4 +6,5 @@ __pycache__/
 .DS_Store
 coverage.xml
 .pytest_cache/
-htmlcov/
+htmlcov/# Node.js dependencies - install with: npm install
+node_modules/
