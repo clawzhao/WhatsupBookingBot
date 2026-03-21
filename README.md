@@ -258,7 +258,15 @@ rm bookings.db
 # Recreate on next run
 ```
 
-## Support & Documentation
+## Documentation
+
+Project documentation is organized in the `doc/` folder:
+
+- **[SETUP.md](doc/SETUP.md)** - Detailed setup and configuration guide
+- **[IMPLEMENTATION_SUMMARY.md](doc/IMPLEMENTATION_SUMMARY.md)** - Implementation details and architecture
+- **[UNANSWERED_QUESTIONS.md](doc/UNANSWERED_QUESTIONS.md)** - Q&A system documentation
+
+## External References
 
 - **Twilio Docs**: https://www.twilio.com/docs/whatsapp
 - **Telegram Bot API**: https://core.telegram.org/bots/api
