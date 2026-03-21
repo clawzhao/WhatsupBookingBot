@@ -1,0 +1,51 @@
+[dotenv@17.3.1] injecting env (1) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[Telegram] Bot module loaded - v2
+Server is running on http://localhost:3000
+WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)
+Initializing Telegram Bot...
+Telegram Bot is ready and listening!
+[Menu] Requested by chatId=8383381149, text="📋 Menu"
+[Menu] Response length: 962
+[Menu] Sent successfully to 8383381149
+[dotenv@17.3.1] injecting env (1) from .env -- tip: ⚡️ secrets for agents: https://dotenvx.com/as2
+[Telegram] Bot module loaded - v2
+Server is running on http://localhost:3000
+WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)
+Initializing Telegram Bot...
+Telegram Bot is ready and listening!
+[Watchdog] Starting Telegram bot...
+[dotenv@17.3.1] injecting env (1) from .env -- tip: 🔐 prevent committing .env to code: https://dotenvx.com/precommit
+[Telegram] Bot module loaded - v2
+Server is running on http://localhost:3000
+WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)
+Telegram disabled (set TELEGRAM_BOT_TOKEN to enable)
+[dotenv@17.3.1] injecting env (1) from .env -- tip: ⚙️  override existing env vars with { override: true }
+[Telegram] Bot module loaded - v2
+Server is running on http://localhost:3000
+WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)
+Initializing Telegram Bot...
+Telegram Bot is ready and listening!
+[Telegram] Message received: { chatId: 8383381149, text: '/start', from: 8383381149 }
+[Menu] Requested by chatId=8383381149, text="/start"
+[Menu] Response length: 962
+[Telegram] Message received: { chatId: 8383381149, text: '📋 Menu', from: 8383381149 }
+[Menu] Requested by chatId=8383381149, text="📋 Menu"
+[Menu] Response length: 962
+[Telegram] Message received: { chatId: 8383381149, text: '📋 Menu', from: 8383381149 }
+[Menu] Requested by chatId=8383381149, text="📋 Menu"
+[Menu] Response length: 962
+[Menu] Sent successfully to 8383381149
+[Menu] Sent successfully to 8383381149
+[Menu] Sent successfully to 8383381149
+[dotenv@17.3.1] injecting env (3) from .env -- tip: ⚙️  load multiple .env files with { path: ['.env.local', '.env'] }
+[Watchdog] Starting bot...
+[dotenv@17.3.1] injecting env (0) from .env -- tip: ⚙️  write to custom object with { processEnv: myObject }
+[Telegram] Bot module loaded - v2
+Server is running on http://localhost:3000
+WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)
+Initializing Telegram Bot...
+Telegram Bot is ready and listening!
+[Telegram] Message received: { chatId: 8383381149, text: '📋 Menu', from: 8383381149 }
+[Menu] Requested by chatId=8383381149, text="📋 Menu"
+[Menu] Response length: 962
+[Menu] Sent successfully to 8383381149

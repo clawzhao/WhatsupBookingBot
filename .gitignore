@@ -1,4 +1,9 @@
-node_modules
-data/
+# Ignore secrets
 .env
+*.db
+__pycache__/
+*.pyc
 .DS_Store
+coverage.xml
+.pytest_cache/
+htmlcov/

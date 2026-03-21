@@ -1,0 +1,59 @@
+INFO:     Started server process [231762]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:35554 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42572 - "GET /docs HTTP/1.1" 200 OK
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+INFO:     127.0.0.1:48716 - "POST /query HTTP/1.1" 200 OK
+Failed to send telemetry event CollectionAddEvent: capture() takes 1 positional argument but 3 were given
+INFO:     127.0.0.1:38214 - "POST /ingest HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:49280 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:56300 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:57534 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:49378 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:43044 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:58754 - "POST /query HTTP/1.1" 200 OK
+Number of requested results 5 is greater than number of elements in index 3, updating n_results = 3
+INFO:     127.0.0.1:58766 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39638 - "POST /ingest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48216 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45398 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53610 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34474 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34496 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57822 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57826 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39802 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37794 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33306 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33322 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40632 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55442 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57102 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60544 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55770 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39992 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35684 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47182 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39492 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58710 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44212 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53302 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52398 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43482 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58890 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35930 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44550 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57068 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53794 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42040 - "POST /query HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55532 - "POST /query HTTP/1.1" 200 OK
