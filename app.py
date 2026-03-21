@@ -77,4 +77,4 @@ def seed_services():
 if __name__ == '__main__':
     init_db(app)
     seed_services()
-    app.run(host='0.0.0.0', port=5000, debug=app.config.get('FLASK_DEBUG', False))
+    app.run(host='0.0.0.0', port=3010, debug=app.config.get('FLASK_DEBUG', False))

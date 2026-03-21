@@ -168,7 +168,7 @@ The easiest way to start both services is using the provided startup script:
 cd /path/to/whatsapp-booking-demo
 source venv/bin/activate
 python app.py
-# Runs on http://localhost:5000
+# Runs on http://localhost:3010
 ```
 
 **Terminal 2 - Telegram (Node.js):**
