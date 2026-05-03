@@ -28,15 +28,15 @@ This task list breaks down the swimming lesson booking system implementation int
 
 Initialize SQLite database, project structure, dependencies, and GitHub integration.
 
-- [ ] T001 Create SQLite database initialization script at `src/db/init.sql` with tables for students, bookings, coaches, timeslots, reservations, messages, knowledge_base, audit_logs
-- [ ] T002 [P] Create Node.js entry point with Express server at `src/index.js` (port configuration, middleware setup, error handling)
-- [ ] T002 [P] Create WhatsApp bot initialization at `src/whatsapp-bot.js` with authentication and message listener setup
-- [ ] T003 Install npm dependencies: `better-sqlite3@9.x`, `express@5.x`, `whatsapp-web.js@1.x`, `dotenv`, `body-parser`, `node-cron`, `uuid` (update `package.json`)
-- [ ] T004 Create environment configuration template at `.env.example` with DATABASE_PATH, BOT_CREDENTIALS, ADMIN_SECRET
-- [ ] T005 [P] Create project structure directories: `src/{models,services,api,background,middleware}`, `db/`, `tests/{unit,integration,e2e}`, `admin-dashboard/`
-- [ ] T006 [P] Create GitHub workflow file at `.github/workflows/ci.yml` for test automation (Jest, lint, coverage checks)
-- [ ] T007 Create Jest configuration at `jest.config.js` with coverage thresholds (>80% for critical paths) and test environment setup
-- [ ] T008 Initialize Flutter project at `admin-dashboard/` with `flutter create --template=app` and configure pubspec.yaml dependencies (get, provider, dio)
+- [x] T001 Create SQLite database initialization script at `src/db/init.sql` with tables for students, bookings, coaches, timeslots, reservations, messages, knowledge_base, audit_logs
+- [x] T002 [P] Create Node.js entry point with Express server at `src/index.js` (port configuration, middleware setup, error handling)
+- [x] T002 [P] Create WhatsApp bot initialization at `src/whatsapp-bot.js` with authentication and message listener setup
+- [x] T003 Install npm dependencies: `better-sqlite3@9.x`, `express@5.x`, `whatsapp-web.js@1.x`, `dotenv`, `body-parser`, `node-cron`, `uuid` (update `package.json`)
+- [x] T004 Create environment configuration template at `.env.example` with DATABASE_PATH, BOT_CREDENTIALS, ADMIN_SECRET
+- [x] T005 [P] Create project structure directories: `src/{models,services,api,background,middleware}`, `db/`, `tests/{unit,integration,e2e}`, `admin-dashboard/`
+- [x] T006 [P] Create GitHub workflow file at `.github/workflows/ci.yml` for test automation (Jest, lint, coverage checks)
+- [x] T007 Create Jest configuration at `jest.config.js` with coverage thresholds (>80% for critical paths) and test environment setup
+- [x] T008 Initialize Flutter project at `admin-dashboard/` with `flutter create --template=app` and configure pubspec.yaml dependencies (get, provider, dio)
 
 **Independent Test**: Database initializes with all 8 tables; Node server starts on configured port; WhatsApp listener ready; Flutter app scaffolded.
 
@@ -46,20 +46,20 @@ Initialize SQLite database, project structure, dependencies, and GitHub integrat
 
 Implement core database models, authentication, common services, and error handling used by all user stories.
 
-- [ ] T009 Create Student model at `src/models/Student.js` with schema (phone, name, email, created_at) and CRUD methods using better-sqlite3
-- [ ] T010 [P] Create Coach model at `src/models/Coach.js` with schema (id, name, phone, locations, daily_reminder_time, reminder_30min_enabled, created_at) and methods
-- [ ] T010 [P] Create TimeSlot model at `src/models/TimeSlot.js` with schema (id, day_of_week, start_time, end_time, location, max_capacity, coach_id, is_active)
-- [ ] T011 [P] Create Booking model at `src/models/Booking.js` with schema (id, student_phone, coach_id, timeslot_id, booking_date, status: ['pending','confirmed','cancelled','completed'], created_at, cancelled_at)
-- [ ] T012 [P] Create SlotReservation model at `src/models/SlotReservation.js` with schema (id, timeslot_id, student_phone, reserved_at, expires_at) for soft-holds with auto-expiry
-- [ ] T013 [P] Create ChatMessage model at `src/models/ChatMessage.js` with schema (id, sender_phone, text, timestamp, thread_type: ['individual','group'], booking_id, context_raw, is_processed)
-- [ ] T014 [P] Create KnowledgeBase model at `src/models/KnowledgeBase.js` with schema (id, question_text, answer_text, category, created_at, updated_at, usage_count, coaches_refined)
-- [ ] T015 Create AuditLog model at `src/models/AuditLog.js` with schema (id, entity_type, entity_id, change_type: ['create','update','delete'], old_values, new_values, changed_by, timestamp) for full traceability
-- [ ] T016 Create admin authentication middleware at `src/middleware/auth.js` with username/password validation (v1 simple auth, OAuth roadmap for v2)
-- [ ] T017 [P] Create validation middleware at `src/middleware/validators.js` with helper functions for phone format, timeslot availability, coach approval window
-- [ ] T018 Create error handling helper at `src/utils/errorHandler.js` with custom error classes (BookingConflict, SoftHoldExpired, CoachUnavailable, InvalidTimeslot) and logging
-- [ ] T019 Create database connection pool at `src/db/connection.js` with connection management for better-sqlite3 and WAL mode enablement for concurrent writes
-- [ ] T020 Create base service class at `src/services/BaseService.js` with common methods (validate, audit, transaction helpers, retry logic)
-- [ ] T021 Create soft-hold helper service at `src/services/SoftHoldService.js` with methods: createReservation(), expireReservation(), checkConflict(), cleanupExpired()
+- [x] T009 Create Student model at `src/models/Student.js` with schema (phone, name, email, created_at) and CRUD methods using better-sqlite3
+- [x] T010 [P] Create Coach model at `src/models/Coach.js` with schema (id, name, phone, locations, daily_reminder_time, reminder_30min_enabled, created_at) and methods
+- [x] T010 [P] Create TimeSlot model at `src/models/TimeSlot.js` with schema (id, day_of_week, start_time, end_time, location, max_capacity, coach_id, is_active)
+- [x] T011 [P] Create Booking model at `src/models/Booking.js` with schema (id, student_phone, coach_id, timeslot_id, booking_date, status: ['pending','confirmed','cancelled','completed'], created_at, cancelled_at)
+- [x] T012 [P] Create SlotReservation model at `src/models/SlotReservation.js` with schema (id, timeslot_id, student_phone, reserved_at, expires_at) for soft-holds with auto-expiry
+- [x] T013 [P] Create ChatMessage model at `src/models/ChatMessage.js` with schema (id, sender_phone, text, timestamp, thread_type: ['individual','group'], booking_id, context_raw, is_processed)
+- [x] T014 [P] Create KnowledgeBase model at `src/models/KnowledgeBase.js` with schema (id, question_text, answer_text, category, created_at, updated_at, usage_count, coaches_refined)
+- [x] T015 Create AuditLog model at `src/models/AuditLog.js` with schema (id, entity_type, entity_id, change_type: ['create','update','delete'], old_values, new_values, changed_by, timestamp) for full traceability
+- [x] T016 Create admin authentication middleware at `src/middleware/auth.js` with username/password validation (v1 simple auth, OAuth roadmap for v2)
+- [x] T017 [P] Create validation middleware at `src/middleware/validators.js` with helper functions for phone format, timeslot availability, coach approval window
+- [x] T018 Create error handling helper at `src/utils/errorHandler.js` with custom error classes (BookingConflict, SoftHoldExpired, CoachUnavailable, InvalidTimeslot) and logging
+- [x] T019 Create database connection pool at `src/db/connection.js` with connection management for better-sqlite3 and WAL mode enablement for concurrent writes
+- [x] T020 Create base service class at `src/services/BaseService.js` with common methods (validate, audit, transaction helpers, retry logic)
+- [x] T021 Create soft-hold helper service at `src/services/SoftHoldService.js` with methods: createReservation(), expireReservation(), checkConflict(), cleanupExpired()
 
 **Independent Test**: All 8 models create/read/update/delete successfully; Auth middleware validates credentials; Error classes throw correctly; Soft-holds create, expire automatically after 45 seconds, prevent double-books.
 
@@ -81,14 +81,14 @@ Implement core database models, authentication, common services, and error handl
 - Booking recorded in database with student/coach/time
 
 **Parallel Tasks** (within story):
-- [ ] T022 [P] [US1] Implement BookingService.listAvailableSlots() at `src/services/BookingService.js` - query TimeSlot table, subtract SlotReservation count from capacity, return next 7 days
-- [ ] T023 [P] [US1] Implement BookingService.createUnconfirmedBooking() - insert Booking with status='pending', create SlotReservation (soft-hold), return booking_id
-- [ ] T024 [P] [US1] Create WhatsApp message handler for "Book lesson" intent at `src/api/routes/whatsapp-messages.js` with NLU pattern detection
-- [ ] T025 [P] [US1] Implement coach notification service at `src/services/NotificationService.js` - sendCoachNotification(coach_id, business_type: 'new_booking') using whatsapp-web.js  
-- [ ] T026 [US1] Create booking confirmation endpoint POST `/api/bookings/confirm` at `src/api/routes/bookings.js` with coach assignment and audit logging
-- [ ] T027 [US1] Implement BookingService.assignCoach() with hybrid E+B logic (admin config + user selection + backend approval)
-- [ ] T028 [US1] Write unit tests at `tests/unit/booking.service.spec.js` for all booking service methods
-- [ ] T029 [US1] Write integration test at `tests/integration/booking-flow.spec.js` for complete user booking flow
+- [x] T022 [P] [US1] Implement BookingService.listAvailableSlots() at `src/services/BookingService.js` - query TimeSlot table, subtract SlotReservation count from capacity, return next 7 days
+- [x] T023 [P] [US1] Implement BookingService.createUnconfirmedBooking() - insert Booking with status='pending', create SlotReservation (soft-hold), return booking_id
+- [x] T024 [P] [US1] Create WhatsApp message handler for "Book lesson" intent at `src/api/routes/whatsapp-messages.js` with NLU pattern detection
+- [x] T025 [P] [US1] Implement coach notification service at `src/services/NotificationService.js` - sendCoachNotification(coach_id, business_type: 'new_booking') using whatsapp-web.js  
+- [x] T026 [US1] Create booking confirmation endpoint POST `/api/bookings/confirm` at `src/api/routes/bookings.js` with coach assignment and audit logging
+- [x] T027 [US1] Implement BookingService.assignCoach() with hybrid E+B logic (admin config + user selection + backend approval)
+- [x] T028 [US1] Write unit tests at `tests/unit/booking.service.spec.js` for all booking service methods
+- [x] T029 [US1] Write integration test at `tests/integration/booking-flow.spec.js` for complete user booking flow
 
 **Delivery**: User can complete full booking flow in <3 minutes; system prevents double-booking via soft-hold.
 
@@ -108,13 +108,13 @@ Implement core database models, authentication, common services, and error handl
 - Old timeslot capacity freed for other bookings
 
 **Parallel Tasks** (within story):
-- [ ] T030 [P] [US2] Create reschedule message handler at `src/api/routes/whatsapp-messages.js` detecting "reschedule" intent
-- [ ] T030 [P] [US2] Implement BookingService.getActiveBookings(student_phone) returning all confirmed bookings for next 30 days
-- [ ] T031 [P] [US2] Implement BookingService.rescheduleBooking(booking_id, new_timeslot_id) with validation and audit logging
-- [ ] T032 [US2] Create cancel endpoint POST `/api/bookings/cancel` with deadline validation and notifications
-- [ ] T033 [US2] Implement cancel/reschedule notifications at `src/services/NotificationService.js`
-- [ ] T034 [US2] Write unit tests at `tests/unit/rescheduling.spec.js` for rescheduling logic
-- [ ] T035 [US2] Write integration test at `tests/integration/reschedule-flow.spec.js` for complete reschedule flow
+- [x] T030 [P] [US2] Create reschedule message handler at `src/api/routes/whatsapp-messages.js` detecting "reschedule" intent
+- [x] T030 [P] [US2] Implement BookingService.getActiveBookings(student_phone) returning all confirmed bookings for next 30 days
+- [x] T031 [P] [US2] Implement BookingService.rescheduleBooking(booking_id, new_timeslot_id) with validation and audit logging
+- [x] T032 [US2] Create cancel endpoint POST `/api/bookings/cancel` with deadline validation and notifications
+- [x] T033 [US2] Implement cancel/reschedule notifications at `src/services/NotificationService.js`
+- [x] T034 [US2] Write unit tests at `tests/unit/rescheduling.spec.js` for rescheduling logic
+- [x] T035 [US2] Write integration test at `tests/integration/reschedule-flow.spec.js` for complete reschedule flow
 
 **Delivery**: Reschedule/cancel operations complete within 30 seconds; full audit trail; coach receives notifications.
 
@@ -133,13 +133,13 @@ Implement core database models, authentication, common services, and error handl
 - Coach can improve Q&A pairs (self-improving system)
 - Usage statistics tracked
 
-- [ ] T036 [US3] Phase 0 Research: Complete Q&A fuzzy matching library evaluation
-- [ ] T037 [US3] Create QAService.search() and QAService.escalateQuestion() at `src/services/QAService.js`
-- [ ] T038 [US3] Create WhatsApp FAQ intent handler at `src/api/routes/whatsapp-messages.js`
-- [ ] T039 [P] [US3] Implement escalation notification at `src/services/NotificationService.js`
-- [ ] T040 [US3] Create admin endpoints for Q&A management at `src/api/routes/admin-qa.js`
-- [ ] T041 [US3] Write unit tests at `tests/unit/qa.service.spec.js`
-- [ ] T042 [US3] Write integration test at `tests/integration/qa-flow.spec.js`
+- [x] T036 [US3] Phase 0 Research: Complete Q&A fuzzy matching library evaluation
+- [x] T037 [US3] Create QAService.search() and QAService.escalateQuestion() at `src/services/QAService.js`
+- [x] T038 [US3] Create WhatsApp FAQ intent handler at `src/api/routes/whatsapp-messages.js`
+- [x] T039 [P] [US3] Implement escalation notification at `src/services/NotificationService.js`
+- [x] T040 [US3] Create admin endpoints for Q&A management at `src/api/routes/admin-qa.js`
+- [x] T041 [US3] Write unit tests at `tests/unit/qa.service.spec.js`
+- [x] T042 [US3] Write integration test at `tests/integration/qa-flow.spec.js`
 
 **Delivery**: 80% of common questions answered from knowledge base; unclear questions escalated within 10 seconds.
 
@@ -158,14 +158,14 @@ Implement core database models, authentication, common services, and error handl
 - 99% delivery rate (retry on failure)
 - Respects quiet hours (no reminders 9pm-7am if configured)
 
-- [ ] T043 Phase 0 Research: Complete WhatsApp delivery reliability study
-- [ ] T044 [US4] Create ReminderService at `src/services/ReminderService.js` with all reminder methods
-- [ ] T045 [US4] Create cron job at `src/background/daily-schedule-cron.js` for 7am schedule
-- [ ] T046 [US4] Create cron job at `src/background/thirty-min-reminder-cron.js` for 30-min reminders
-- [ ] T047 [US4] Create retry mechanism at `src/services/ReminderService.js` with exponential backoff
-- [ ] T048 [US4] Create reminder test endpoint POST `/api/reminders/test` for admin
-- [ ] T049 [US4] Write unit tests at `tests/unit/reminders.spec.js`
-- [ ] T050 [US4] Write integration test at `tests/integration/reminders-flow.spec.js`
+- [x] T043 Phase 0 Research: Complete WhatsApp delivery reliability study
+- [x] T044 [US4] Create ReminderService at `src/services/ReminderService.js` with all reminder methods
+- [x] T045 [US4] Create cron job at `src/background/daily-schedule-cron.js` for 7am schedule
+- [x] T046 [US4] Create cron job at `src/background/thirty-min-reminder-cron.js` for 30-min reminders
+- [x] T047 [US4] Create retry mechanism at `src/services/ReminderService.js` with exponential backoff
+- [x] T048 [US4] Create reminder test endpoint POST `/api/reminders/test` for admin
+- [x] T049 [US4] Write unit tests at `tests/unit/reminders.spec.js`
+- [x] T050 [US4] Write integration test at `tests/integration/reminders-flow.spec.js`
 
 **Delivery**: All reminders delivered within 99% success rate; missed reminders logged and retried.
 
@@ -184,13 +184,13 @@ Implement core database models, authentication, common services, and error handl
 - Booking linked to group with context
 - 24-hour timeout if user doesn't respond
 
-- [ ] T051 [US5] Create group chat monitor at `src/services/GroupChatService.js` with intent detection
-- [ ] T052 [P] [US5] Implement GroupChatService.routeToIndividual() for confirmation routing
-- [ ] T053 [P] [US5] Create individual confirmation handler at `src/api/routes/whatsapp-messages.js`
-- [ ] T054 [US5] Implement GroupChatService.linkToGroup() for recording group context
-- [ ] T055 [US5] Create timeout handler at `src/background/group-confirmation-timeout.js`
-- [ ] T056 [US5] Write unit tests at `tests/unit/group-chat.spec.js`
-- [ ] T057 [US5] Write integration test at `tests/integration/group-booking-flow.spec.js`
+- [x] T051 [US5] Create group chat monitor at `src/services/GroupChatService.js` with intent detection
+- [x] T052 [P] [US5] Implement GroupChatService.routeToIndividual() for confirmation routing
+- [x] T053 [P] [US5] Create individual confirmation handler at `src/api/routes/whatsapp-messages.js`
+- [x] T054 [US5] Implement GroupChatService.linkToGroup() for recording group context
+- [x] T055 [US5] Create timeout handler at `src/background/group-confirmation-timeout.js`
+- [x] T056 [US5] Write unit tests at `tests/unit/group-chat.spec.js`
+- [x] T057 [US5] Write integration test at `tests/integration/group-booking-flow.spec.js`
 
 **Delivery**: Group booking flow completed in <5 minutes; one confirmed group booking per user per request.
 
@@ -209,13 +209,13 @@ Implement core database models, authentication, common services, and error handl
 - Conflicts displayed on admin dashboard
 - Coach schedule always valid (zero conflicts in database)
 
-- [ ] T058 [P] [US6] Create ConflictDetector service at `src/services/ConflictDetector.js` with all validation methods
-- [ ] T059 [P] [US6] Update BookingService to call ConflictDetect before creating bookings
-- [ ] T060 [P] [US6] Implement travel time validation using Coach locations and TimeSlot locations
-- [ ] T061 [US6] Create conflict display endpoint GET `/api/conflicts/daily/:coach_id/:date` for admin dashboard
-- [ ] T062 [US6] Create conflict resolution endpoint POST `/api/conflicts/:conflict_id/resolve`
-- [ ] T063 [US6] Write unit tests at `tests/unit/conflict-detector.spec.js`
-- [ ] T064 [US6] Write integration test at `tests/integration/conflict-management.spec.js`
+- [x] T058 [P] [US6] Create ConflictDetector service at `src/services/ConflictDetector.js` with all validation methods
+- [x] T059 [P] [US6] Update BookingService to call ConflictDetect before creating bookings
+- [x] T060 [P] [US6] Implement travel time validation using Coach locations and TimeSlot locations
+- [x] T061 [US6] Create conflict display endpoint GET `/api/conflicts/daily/:coach_id/:date` for admin dashboard
+- [x] T062 [US6] Create conflict resolution endpoint POST `/api/conflicts/:conflict_id/resolve`
+- [x] T063 [US6] Write unit tests at `tests/unit/conflict-detector.spec.js`
+- [x] T064 [US6] Write integration test at `tests/integration/conflict-management.spec.js`
 
 **Delivery**: Zero conflicts in database; coaches see clean schedules; travel time respected. **Critical for zero-bug commitment.**
 
