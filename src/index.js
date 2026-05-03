@@ -125,3 +125,29 @@ if (require.main === module) {
     }
   });
 }
+
+// Test endpoint for Telegram connectivity
+app.post('/api/test-telegram', async (req, res) => {
+  try {
+    const { message, chatId } = req.body;
+    
+    if (!chatId) {
+      return res.status(400).json({ 
+        error: 'chatId required. Start a telegram conversation with the bot first to get your chat ID.'
+      });
+    }
+
+    const { getBot } = require('./telegram');
+    const bot = getBot();
+    
+    if (!bot) {
+      return res.status(503).json({ error: 'Telegram bot not initialized' });
+    }
+
+    await bot.sendMessage(chatId, message || '✅ Test message from Swimming Booking System!');
+    res.json({ success: true, message: 'Message sent to Telegram' });
+  } catch (error) {
+    console.error('[Test Telegram] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
