@@ -234,14 +234,14 @@ Implement core database models, authentication, common services, and error handl
 - Chat history search keyword-based, returns with context
 - Admin can suspend/modify bookings with audit trail
 
-- [ ] T065 [P] [US7] Create Flutter admin app screens at `admin-dashboard/lib/screens/` (Login, Search, Details)
-- [ ] T066 [P] [US7] Create Flutter API service at `admin-dashboard/lib/services/api_service.dart` for all API calls
-- [ ] T067 [P] [US7] Create admin API endpoints at `src/api/routes/admin-search.js` with auth middleware
-- [ ] T068 [P] [US7] Create coach search endpoint GET `/api/admin/coaches?q=` with performance stats
-- [ ] T069 [US7] Create chat search endpoint GET `/api/admin/chats?q=` with context
-- [ ] T070 [US7] Create booking management endpoints for suspend/modify with audit trail
-- [ ] T071 [US7] Write Flutter UI tests at `admin-dashboard/test/search_flow_test.dart`
-- [ ] T072 [US7] Write API integration tests at `tests/integration/admin-search.spec.js`
+- [x] T065 [P] [US7] Create Flutter admin app screens at `admin-dashboard/lib/screens/` (Login, Search, Details)
+- [x] T066 [P] [US7] Create Flutter API service at `admin-dashboard/lib/services/api_service.dart` for all API calls
+- [x] T067 [P] [US7] Create admin API endpoints at `src/api/routes/admin-search.js` with auth middleware
+- [x] T068 [P] [US7] Create coach search endpoint GET `/api/admin/coaches?q=` with performance stats
+- [x] T069 [US7] Create chat search endpoint GET `/api/admin/chats?q=` with context
+- [x] T070 [US7] Create booking management endpoints for suspend/modify with audit trail
+- [x] T071 [US7] Write Flutter UI tests at `admin-dashboard/test/search_flow_test.dart`
+- [x] T072 [US7] Write API integration tests at `tests/integration/admin-search.spec.js`
 
 **Delivery**: Admin can find any student/coach/message in <2 seconds; full audit trail on admin actions; Flutter UI responsive.
 
@@ -260,13 +260,13 @@ Implement core database models, authentication, common services, and error handl
 - Includes timestamps, student names, locations, notes
 - Each affected coach gets personalized list
 
-- [ ] T073 [P] [US8] Create ActivityListService.generateCoachActivityList() at `src/services/ActivityListService.js`
-- [ ] T074 [P] [US8] Update NotificationService to call ActivityListService after booking changes
-- [ ] T075 [US8] Implement consolidation logic to queue rapid updates for same coach
-- [ ] T076 [US8] Create endpoint GET `/api/coaches/:id/activity-today` for current day schedule
-- [ ] T077 [US8] Create endpoint GET `/api/coaches/:id/activity-history` showing past activity
-- [ ] T078 [US8] Write unit tests at `tests/unit/activity-list.spec.js`
-- [ ] T079 [US8] Write integration test at `tests/integration/activity-list-flow.spec.js`
+- [x] T073 [P] [US8] Create ActivityListService.generateCoachActivityList() at `src/services/ActivityListService.js`
+- [x] T074 [P] [US8] Update NotificationService to call ActivityListService after booking changes
+- [x] T075 [US8] Implement consolidation logic to queue rapid updates for same coach
+- [x] T076 [US8] Create endpoint GET `/api/coaches/:id/activity-today` for current day schedule
+- [x] T077 [US8] Create endpoint GET `/api/coaches/:id/activity-history` showing past activity
+- [x] T078 [US8] Write unit tests at `tests/unit/activity-list.spec.js`
+- [x] T079 [US8] Write integration test at `tests/integration/activity-list-flow.spec.js`
 
 **Delivery**: Activity lists generated and sent within 5 seconds; coaches see single consolidated daily schedule.
 
@@ -276,18 +276,18 @@ Implement core database models, authentication, common services, and error handl
 
 Finalize system with monitoring, documentation, error recovery, and performance optimization.
 
-- [ ] T080 [P] Create API rate limiting middleware at `src/middleware/rate-limiting.js` (100 req/min per IP)
-- [ ] T081 [P] Create request logging at `src/middleware/logging.js` with request ID, duration, status
-- [ ] T082 [P] Create health check endpoint GET `/health` returning system status
-- [ ] T083 Create soft-hold cleanup cron job at `src/background/cleanup-cron.js` for expired reservations
-- [ ] T084 Create backup script at `scripts/backup-database.sh` for daily SQLite backup
-- [ ] T085 Create data retention script at `scripts/retention-policy.sh` with 12-month + archive + 3-year deletion
-- [ ] T086 [P] Update README.md with setup, API docs, testing, deployment instructions
-- [ ] T087 [P] Create DEPLOYMENT.md with SQLite production configuration
-- [ ] T088 Create monitoring dashboard instructions at `doc/MONITORING.md`
-- [ ] T089 Create troubleshooting guide at `doc/TROUBLESHOOTING.md`
-- [ ] T090 Write end-to-end test suite at `tests/e2e/full-booking-flow.e2e.js` for complete journey
-- [ ] T091 [P] Create verification checklist for all acceptance criteria and success metrics compliance
+- [x] T080 [P] Create API rate limiting middleware at `src/middleware/rate-limiting.js` (100 req/min per IP)
+- [x] T081 [P] Create request logging at `src/middleware/logging.js` with request ID, duration, status
+- [x] T082 [P] Create health check endpoint GET `/health` returning system status
+- [x] T083 Create soft-hold cleanup cron job at `src/background/cleanup-cron.js` for expired reservations
+- [x] T084 Create backup script at `scripts/backup-database.sh` for daily SQLite backup
+- [x] T085 Create data retention script at `scripts/retention-policy.sh` with 12-month + archive + 3-year deletion
+- [x] T086 [P] Update README.md with setup, API docs, testing, deployment instructions
+- [x] T087 [P] Create DEPLOYMENT.md with SQLite production configuration
+- [x] T088 Create monitoring dashboard instructions at `doc/MONITORING.md`
+- [x] T089 Create troubleshooting guide at `doc/TROUBLESHOOTING.md`
+- [x] T090 Write end-to-end test suite at `tests/e2e/full-booking-flow.e2e.js` for complete journey
+- [x] T091 [P] Create verification checklist for all acceptance criteria and success metrics compliance
 
 **Delivery**: Production-ready system with monitoring, backup, retention policy, documentation, and E2E tests.
 
