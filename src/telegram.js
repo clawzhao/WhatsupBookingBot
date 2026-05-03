@@ -31,8 +31,9 @@ function initTelegram(token) {
   const mainMenuKeyboard = {
     reply_markup: {
       keyboard: [
-        ['📋 Menu', '📅 Book a Table'],
-        ['❌ Cancel Booking', '📋 My Bookings']
+        ['🎓 Book Session', '📅 View Schedule'],
+        ['❌ Cancel Booking', '📋 My Bookings'],
+        ['💬 Ask a Question', '☎️ Contact']
       ],
       resize_keyboard: true
     }
