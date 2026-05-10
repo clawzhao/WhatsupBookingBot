@@ -21,13 +21,54 @@ function initDB() {
     db.run(`
       CREATE TABLE IF NOT EXISTS bookings (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        chat_id TEXT,
         phone TEXT NOT NULL,
         partySize INTEGER NOT NULL,
         date TEXT NOT NULL,
         time TEXT NOT NULL,
-        status TEXT DEFAULT 'confirmed'
+        coach_id TEXT,
+        coach_name TEXT,
+        coach_preference TEXT DEFAULT 'any',
+        status TEXT DEFAULT 'confirmed',
+        created_at TEXT,
+        updated_at TEXT
       )
     `);
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS coach_unavailability (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        coach_id TEXT NOT NULL,
+        coach_name TEXT,
+        reason TEXT,
+        type TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        created_at TEXT
+      )
+    `);
+    
+    // Migration: Add new columns if they don't exist (for existing databases)
+    db.all("PRAGMA table_info(bookings)", (err, columns) => {
+      if (err) return;
+      const columnNames = columns.map(c => c.name);
+      const addIfMissing = (colName, colDef) => {
+        if (!columnNames.includes(colName)) {
+          db.run(`ALTER TABLE bookings ADD COLUMN ${colDef}`, (err) => {
+            if (err) console.error(`Failed to add ${colName}:`, err);
+            else console.log(`[DB] Migration: Added ${colName} to bookings table`);
+          });
+        }
+      };
+      addIfMissing('chat_id', 'chat_id TEXT');
+      addIfMissing('coach_id', 'coach_id TEXT');
+      addIfMissing('coach_name', 'coach_name TEXT');
+      addIfMissing('coach_preference', "coach_preference TEXT DEFAULT 'any'");
+      addIfMissing('created_at', 'created_at TEXT');
+      addIfMissing('updated_at', 'updated_at TEXT');
+    });
   });
 }
 
@@ -77,20 +118,21 @@ function validateBooking(date, time, partySize) {
   return { valid: true };
 }
 
-function createBooking(phone, partySize, date, time) {
+function createBooking(phone, partySize, date, time, chatId = null, coachId = null, coachName = null, coachPreference = 'any') {
   return new Promise((resolve, reject) => {
     const validation = validateBooking(date, time, partySize);
     if (!validation.valid) {
       return resolve({ success: false, message: validation.message });
     }
 
-    const stmt = db.prepare('INSERT INTO bookings (phone, partySize, date, time) VALUES (?, ?, ?, ?)');
-    stmt.run([phone, partySize, date, time], function(err) {
+    const now = new Date().toISOString();
+    const stmt = db.prepare('INSERT INTO bookings (chat_id, phone, partySize, date, time, coach_id, coach_name, coach_preference, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+    stmt.run([chatId, phone, partySize, date, time, coachId, coachName, coachPreference, now, now], function(err) {
       if (err) {
         console.error('Create booking error:', err);
         return resolve({ success: false, message: 'Internal server error.' });
       }
-      resolve({ success: true, id: this.lastID, message: `Booking confirmed! ID: ${this.lastID}` });
+      resolve({ success: true, id: this.lastID, message: `Booking confirmed! ID: ${this.lastID}`, coachName });
     });
   });
 }
@@ -138,11 +180,67 @@ function clearBookings() {
   });
 }
 
+function updateBookingCoach(id, coachId, coachName) {
+  return new Promise((resolve, reject) => {
+    const now = new Date().toISOString();
+    db.run(
+      'UPDATE bookings SET coach_id = ?, coach_name = ?, updated_at = ? WHERE id = ?',
+      [coachId, coachName, now, id],
+      function(err) {
+        if (err) return reject(err);
+        if (this.changes === 0) return resolve({ success: false, message: 'Booking not found' });
+        resolve({ success: true });
+      }
+    );
+  });
+}
+
+function createUnavailability(coachId, coachName, reason, type, startDate, endDate, startTime, endTime) {
+  return new Promise((resolve, reject) => {
+    const now = new Date().toISOString();
+    db.run(
+      'INSERT INTO coach_unavailability (coach_id, coach_name, reason, type, start_date, end_date, start_time, end_time, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [coachId, coachName || null, reason || null, type, startDate, endDate, startTime || null, endTime || null, now],
+      function(err) {
+        if (err) return reject(err);
+        resolve({ success: true, id: this.lastID });
+      }
+    );
+  });
+}
+
+function getUnavailability(coachId) {
+  return new Promise((resolve, reject) => {
+    const query = coachId
+      ? 'SELECT * FROM coach_unavailability WHERE coach_id = ? ORDER BY start_date DESC, id DESC'
+      : 'SELECT * FROM coach_unavailability ORDER BY start_date DESC, id DESC';
+    const params = coachId ? [coachId] : [];
+    db.all(query, params, (err, rows) => {
+      if (err) return reject(err);
+      resolve(rows);
+    });
+  });
+}
+
+function deleteUnavailability(id) {
+  return new Promise((resolve, reject) => {
+    db.run('DELETE FROM coach_unavailability WHERE id = ?', [id], function(err) {
+      if (err) return reject(err);
+      if (this.changes === 0) return resolve({ success: false, message: 'Record not found' });
+      resolve({ success: true });
+    });
+  });
+}
+
 module.exports = {
   validateBooking,
   createBooking,
   cancelBooking,
   getAllBookings,
   clearBookings,
+  updateBookingCoach,
+  createUnavailability,
+  getUnavailability,
+  deleteUnavailability,
   db // exported for advanced test scenarios (use with caution)
 };

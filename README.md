@@ -97,7 +97,7 @@ whatsapp-booking-demo/
 │   └── assets/                  # App resources
 │
 ├── config/
-│   └── restaurant.json          # Coaching system configuration
+│   └── config.json              # Coaching system configuration
 │
 ├── test/                        # Test files
 │   ├── unit/                    # Unit tests
@@ -129,7 +129,7 @@ WHATSAPP_ENABLED=false
 # TELEGRAM_ALLOWED_USERS=123456789,987654321
 ```
 
-### Coaching Configuration (`config/restaurant.json`)
+### Coaching Configuration (`config/config.json`)
 
 ```json
 {

@@ -1,9 +1,10 @@
 {
+  "restaurant": {
   "name": "Professional Coaching Academy",
   "phone": "+1-800-COACHING",
   "timezone": "America/New_York",
   "slotDuration": 60,
-  "maxPartySize": 1,
+  "maxPartySize": 3,
   "openingHours": {
     "Monday": {
       "open": "06:00",
@@ -72,4 +73,5 @@
       "price": 100
     }
   ]
+  }
 }

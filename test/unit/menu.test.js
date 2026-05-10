@@ -27,7 +27,7 @@ describe('Menu Module', () => {
   });
 
   it('should handle missing config gracefully', () => {
-    const configPath = require('path').join(__dirname, '../../config/restaurant.json');
+    const configPath = require('path').join(__dirname, '../../config/config.json');
     const fs = require('fs');
     if (fs.existsSync(configPath)) {
       fs.unlinkSync(configPath);

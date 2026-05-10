@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coach Management — Admin</title>
+  <style>
+    /* Design System */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --sidebar-bg:    #0f172a;
+      --sidebar-hover: #1e293b;
+      --sidebar-active:#1d4ed8;
+      --sidebar-text:  #94a3b8;
+      --sidebar-head:  #f1f5f9;
+      --accent:        #3b82f6;
+      --accent-light:  #eff6ff;
+      --canvas:        #f8fafc;
+      --surface:       #ffffff;
+      --border:        #e2e8f0;
+      --text-primary:  #0f172a;
+      --text-secondary:#64748b;
+      --success:       #22c55e;
+      --error:         #ef4444;
+      --warning:       #f59e0b;
+      --shadow-sm:     0 1px 3px rgba(0,0,0,.08);
+      --radius:        10px;
+      --transition:    180ms ease;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--canvas);
+      color: var(--text-primary);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--sidebar-bg);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 0 16px;
+      gap: 4px;
+      overflow-y: auto;
+    }
+
+    .sidebar-logo {
+      padding: 0 20px 20px;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-logo span {
+      display: block;
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--sidebar-head);
+    }
+
+    .sidebar-logo small {
+      color: var(--sidebar-text);
+      font-size: .72rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 20px;
+      color: var(--sidebar-text);
+      text-decoration: none;
+      font-size: .875rem;
+      transition: background var(--transition), color var(--transition);
+      cursor: pointer;
+    }
+
+    .nav-item:hover { background: var(--sidebar-hover); color: #e2e8f0; }
+    .nav-item.active { background: var(--sidebar-active); color: #fff; }
+
+    /* Main area */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .topbar {
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      gap: 12px;
+      flex-shrink: 0;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .topbar h1 { font-size: 1rem; font-weight: 600; color: var(--text-primary); }
+    .topbar-spacer { flex: 1; }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    /* Cards & Forms */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-weight: 600;
+      font-size: .875rem;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: .875rem;
+      font-family: inherit;
+      transition: border-color var(--transition);
+    }
+
+    .form-group input:focus,
+    .form-group select:focus,
+    .form-group textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .checkbox-group {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .checkbox-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .checkbox-item input {
+      width: auto;
+      margin: 0;
+    }
+
+    /* Buttons */
+    button {
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: .875rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background var(--transition);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+
+    .btn-primary:hover { background: #2563eb; }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover { background: #cbd5e1; }
+
+    .btn-danger {
+      background: #fee2e2;
+      color: var(--error);
+    }
+
+    .btn-danger:hover { background: #fecaca; }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Coaches Grid */
+    .coaches-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .coach-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      box-shadow: var(--shadow-sm);
+      transition: all var(--transition);
+    }
+
+    .coach-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+    }
+
+    .coach-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .coach-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: var(--accent-light);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .coach-info h3 {
+      font-size: 1rem;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .coach-status {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: .75rem;
+      font-weight: 600;
+    }
+
+    .coach-status.available {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .coach-status.unavailable {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .coach-details {
+      font-size: .875rem;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .coach-details p {
+      margin-bottom: 4px;
+    }
+
+    .coach-actions {
+      display: flex;
+      gap: 8px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .coach-actions button {
+      flex: 1;
+      padding: 6px 12px;
+      font-size: .75rem;
+    }
+
+    /* Status Messages */
+    .status-msg {
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: .875rem;
+      display: none;
+    }
+
+    .status-msg.success {
+      background: #dcfce7;
+      color: #166534;
+      display: block;
+    }
+
+    .status-msg.error {
+      background: #fee2e2;
+      color: #991b1b;
+      display: block;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    .modal.active { display: block; }
+
+    .modal-content {
+      background-color: var(--surface);
+      margin: 5% auto;
+      padding: 24px;
+      border-radius: var(--radius);
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-header {
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .modal-footer {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .close {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: -12px;
+      margin-right: -8px;
+    }
+
+    .close:hover { color: var(--text-primary); }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .form-row { grid-template-columns: 1fr; }
+      .checkbox-group { grid-template-columns: repeat(2, 1fr); }
+      .coaches-grid { grid-template-columns: 1fr; }
+      .sidebar { width: 70px; }
+      .nav-item { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <span>📋 Admin</span>
+      <small>Booking System</small>
+    </div>
+    <a class="nav-item" href="/bookings.html">📅 Bookings</a>
+    <a class="nav-item" href="/config.html">⚙️ Configuration</a>
+    <a class="nav-item active" href="/coaches.html">👥 Coaches</a>
+    <a class="nav-item" href="/coach-schedule.html">📋 Coach Schedule</a>
+    <a class="nav-item" href="/chatbot.html">🤖 Chatbot Q&amp;A</a>
+    <a class="nav-item" href="/chat-history.html">💬 Chat History</a>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <h1>👥 Coach Management</h1>
+      <div class="topbar-spacer"></div>
+      <button class="btn-primary" onclick="openAddCoachModal()">+ Add Coach</button>
+    </div>
+
+    <div class="content">
+      <div id="status-msg" class="status-msg"></div>
+
+      <div class="coaches-grid" id="coaches-grid">
+        <!-- Populated via JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Add/Edit Coach Modal -->
+  <div id="coachModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeCoachModal()">&times;</span>
+      <div class="modal-header" id="modalTitle">Add New Coach</div>
+
+      <div class="form-group">
+        <label>Coach Name</label>
+        <input type="text" id="coach-name" placeholder="e.g. Coach Alex">
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label>Phone</label>
+          <input type="tel" id="coach-phone" placeholder="+1-800-COACH">
+        </div>
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="coach-email" placeholder="coach@academy.com">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Availability by Day</label>
+        <div class="checkbox-group">
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Monday" checked> Mon
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Tuesday" checked> Tue
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Wednesday" checked> Wed
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Thursday" checked> Thu
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Friday" checked> Fri
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Saturday"> Sat
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" data-day="Sunday"> Sun
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeCoachModal()">Cancel</button>
+        <button class="btn-primary" onclick="saveCoach()">Save Coach</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let _currentConfig = {};
+    let _editingCoachId = null;
+
+    async function loadCoaches() {
+      try {
+        const response = await fetch('/api/config');
+        _currentConfig = await response.json();
+        const coaches = _currentConfig.restaurant?.coaches || [];
+
+        const grid = document.getElementById('coaches-grid');
+        if (coaches.length === 0) {
+          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 48px; color: #999;">No coaches added yet. Click "+ Add Coach" to create one.</div>';
+          return;
+        }
+
+        grid.innerHTML = coaches.map(coach => `
+          <div class="coach-card">
+            <div class="coach-header">
+              <div class="coach-avatar">${coach.name.charAt(0).toUpperCase()}</div>
+              <div class="coach-info">
+                <h3>${coach.name}</h3>
+                <span class="coach-status ${coach.status === 'available' ? 'available' : 'unavailable'}">
+                  ${coach.status === 'available' ? '🟢 Available' : '🔴 Unavailable'}
+                </span>
+              </div>
+            </div>
+            <div class="coach-details">
+              <p>📞 ${coach.phone || 'N/A'}</p>
+              <p>✉️ ${coach.email || 'N/A'}</p>
+              <p>📅 ${coach.availability ? Object.entries(coach.availability).filter(([_, v]) => v).map(([d]) => d.substring(0, 3)).join(', ') : 'Not set'}</p>
+            </div>
+            <div class="coach-actions">
+              <button class="btn-secondary" onclick="editCoach('${coach.id}')">Edit</button>
+              <button class="btn-danger" onclick="deleteCoach('${coach.id}')">Remove</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (error) {
+        console.error('Failed to load coaches:', error);
+        showStatus('Failed to load coaches', 'error');
+      }
+    }
+
+    function openAddCoachModal() {
+      _editingCoachId = null;
+      document.getElementById('modalTitle').textContent = 'Add New Coach';
+      document.getElementById('coach-name').value = '';
+      document.getElementById('coach-phone').value = '';
+      document.getElementById('coach-email').value = '';
+      document.querySelectorAll('input[data-day]').forEach(el => el.checked = el.dataset.day !== 'Saturday' && el.dataset.day !== 'Sunday');
+      document.getElementById('coachModal').classList.add('active');
+    }
+
+    function editCoach(coachId) {
+      const coaches = _currentConfig.restaurant?.coaches || [];
+      const coach = coaches.find(c => c.id === coachId);
+      if (!coach) return;
+
+      _editingCoachId = coachId;
+      document.getElementById('modalTitle').textContent = 'Edit Coach';
+      document.getElementById('coach-name').value = coach.name;
+      document.getElementById('coach-phone').value = coach.phone || '';
+      document.getElementById('coach-email').value = coach.email || '';
+      document.querySelectorAll('input[data-day]').forEach(el => {
+        el.checked = coach.availability[el.dataset.day] === true;
+      });
+      document.getElementById('coachModal').classList.add('active');
+    }
+
+    function closeCoachModal() {
+      document.getElementById('coachModal').classList.remove('active');
+      _editingCoachId = null;
+    }
+
+    function saveCoach() {
+      const name = document.getElementById('coach-name').value.trim();
+      const phone = document.getElementById('coach-phone').value.trim();
+      const email = document.getElementById('coach-email').value.trim();
+
+      if (!name) {
+        showStatus('Coach name is required', 'error');
+        return;
+      }
+
+      const availability = {};
+      ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].forEach(day => {
+        const cb = document.querySelector(`input[data-day="${day}"]`);
+        availability[day] = cb.checked;
+      });
+
+      let coaches = _currentConfig.restaurant?.coaches || [];
+
+      if (_editingCoachId) {
+        const index = coaches.findIndex(c => c.id === _editingCoachId);
+        if (index >= 0) {
+          coaches[index] = { ...coaches[index], name, phone, email, availability };
+        }
+      } else {
+        const id = 'coach_' + Date.now();
+        coaches.push({ id, name, phone, email, availability, status: 'available', specialties: [] });
+      }
+
+      _currentConfig.restaurant.coaches = coaches;
+      saveConfig();
+    }
+
+    function deleteCoach(coachId) {
+      if (!confirm('Are you sure you want to remove this coach?')) return;
+
+      let coaches = _currentConfig.restaurant?.coaches || [];
+      coaches = coaches.filter(c => c.id !== coachId);
+      _currentConfig.restaurant.coaches = coaches;
+      saveConfig();
+    }
+
+    function showStatus(msg, type) {
+      const statusEl = document.getElementById('status-msg');
+      statusEl.textContent = msg;
+      statusEl.className = 'status-msg ' + type;
+      setTimeout(() => statusEl.className = 'status-msg', 5000);
+    }
+
+    async function saveConfig() {
+      try {
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(_currentConfig)
+        });
+
+        if (response.ok) {
+          showStatus('✓ Coaches updated successfully!', 'success');
+          closeCoachModal();
+          loadCoaches();
+        } else {
+          showStatus('✗ Failed to save coaches', 'error');
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        showStatus('✗ Error saving coaches', 'error');
+      }
+    }
+
+    // Load coaches on page init
+    loadCoaches();
+  </script>
+</body>
+</html>

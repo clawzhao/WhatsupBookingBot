@@ -24,7 +24,7 @@ global.expect = expect;
 global.resetModule = resetModule;
 
 // Backup and restore config
-const configPath = path.join(__dirname, '../config/restaurant.json');
+const configPath = path.join(__dirname, '../config/config.json');
 let originalConfig = null;
 
 // Root hooks

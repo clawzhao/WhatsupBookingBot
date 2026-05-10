@@ -5,7 +5,7 @@ const { loadConfig, saveConfig } = require('../../src/config');
 const { testConfig, setupTestConfig } = require('../helpers');
 
 describe('Config Module', () => {
-  const configPath = path.join(__dirname, '../../config/restaurant.json');
+  const configPath = path.join(__dirname, '../../config/config.json');
 
   it('should return null when config file does not exist', () => {
     // Backup and remove

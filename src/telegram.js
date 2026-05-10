@@ -2,13 +2,17 @@ const TelegramBot = require('node-telegram-bot-api');
 const { getMenuText } = require('./menu');
 const { createBooking, cancelBooking, getAllBookings } = require('./booking');
 const { loadConfig } = require('./config');
+const { logMessage } = require('./chatlog');
 const moment = require('moment-timezone');
 const http = require('http');
+const GeminiChatbot = require('./gemini-chatbot');
+const { toolDeclarations, executeTool } = require('./bot-skills');
 
 console.log('[Telegram] Bot module loaded - v2'); // version marker
 
 let bot = null;
 const userSessions = {};
+const chatUsernames = {}; // chatId -> '@username' for outbound log enrichment
 
 function initTelegram(token) {
   if (!token) {
@@ -17,6 +21,23 @@ function initTelegram(token) {
   }
 
   bot = new TelegramBot(token, { polling: true });
+
+  // ── Outbound logging: intercept every sendMessage and log it ──────────────
+  const _botSendMessage = bot.sendMessage.bind(bot);
+  bot.sendMessage = function (chatId, text, opts) {
+    if (typeof text === 'string' && text) {
+      logMessage({
+        platform: 'telegram',
+        chatId: String(chatId),
+        username: chatUsernames[String(chatId)] || null,
+        direction: 'outbound',
+        message: text.slice(0, 2000),
+        msgType: 'text'
+      }).catch(() => {});
+    }
+    return _botSendMessage(chatId, text, opts);
+  };
+  // ─────────────────────────────────────────────────────────────────────────
 
   const ALLOWED_USERS = process.env.TELEGRAM_ALLOWED_USERS
     ? process.env.TELEGRAM_ALLOWED_USERS.split(',').map(id => id.trim())
@@ -35,12 +56,133 @@ function initTelegram(token) {
         ['❌ Cancel Booking', '📋 My Bookings'],
         ['💬 Ask a Question', '☎️ Contact']
       ],
-      resize_keyboard: true
+      resize_keyboard: true,
+      one_time_keyboard: false,
+      is_persistent: true
     }
   };
 
   function showMainMenu(chatId, message = 'Welcome! Please choose an option:') {
     bot.sendMessage(chatId, message, mainMenuKeyboard);
+  }
+
+  // Smart Q&A matching for common questions
+  function getSmartAnswer(question) {
+    const q = question.toLowerCase().trim();
+    const config = loadConfig();
+    const r = config?.restaurant || {};
+
+    // Hours
+    if (q.match(/hour|open|close|when|time/i)) {
+      if (!r.openingHours || Object.keys(r.openingHours).length === 0) {
+        return 'Hours not configured yet. Please contact us.';
+      }
+      let hours = '🕐 <b>Opening Hours:</b>\n\n';
+      Object.entries(r.openingHours).forEach(([day, h]) => {
+        hours += `<b>${day}</b>: ${h.open} - ${h.close}\n`;
+      });
+      return hours;
+    }
+
+    // Services/Menu
+    if (q.match(/service|offer|menu|what.*do|package|program/i)) {
+      if (!r.menu || r.menu.length === 0) {
+        return 'Services not configured yet. Please contact us.';
+      }
+      let services = '<b>🎓 Our Services:</b>\n\n';
+      const byCategory = {};
+      r.menu.forEach(item => {
+        if (!byCategory[item.category]) byCategory[item.category] = [];
+        byCategory[item.category].push(item);
+      });
+      Object.entries(byCategory).forEach(([cat, items]) => {
+        services += `<b>${cat}</b>\n`;
+        items.forEach(item => {
+          services += `• ${item.name}: $${item.price}\n`;
+        });
+        services += '\n';
+      });
+      return services;
+    }
+
+    // Pricing
+    if (q.match(/price|cost|how much|fee|charge/i)) {
+      if (!r.menu || r.menu.length === 0) {
+        return 'Pricing not configured yet. Please contact us.';
+      }
+      let pricing = '<b>💵 Pricing:</b>\n\n';
+      const byPrice = {};
+      r.menu.forEach(item => {
+        const p = item.price.toFixed(2);
+        if (!byPrice[p]) byPrice[p] = [];
+        byPrice[p].push(item.name);
+      });
+      Object.entries(byPrice).sort().forEach(([price, names]) => {
+        pricing += `<b>$${price}</b>: ${names.join(', ')}\n`;
+      });
+      return pricing;
+    }
+
+    // Coaches / trainers — must be checked BEFORE the generic 'who/about' handler
+    if (q.match(/coach|trainer|instructor|staff|team\s*member/i)) {
+      const coaches = (r.coaches || []).filter(c => c.status !== 'unavailable');
+      if (!coaches.length) {
+        const phone = r.phone ? `\n\nFor details, call us at ${r.phone}.` : '';
+        return `We have a team of professional coaches available.${phone}`;
+      }
+      let reply = '<b>\ud83d\udc65 Our Coaches:</b>\n\n';
+      coaches.forEach(c => {
+        reply += `<b>${c.name}</b>`;
+        if (c.specialties && c.specialties.length) {
+          reply += ` — ${c.specialties.join(', ')}`;
+        }
+        if (c.phone) reply += `\n📱 ${c.phone}`;
+        if (c.email) reply += `\n📧 ${c.email}`;
+        reply += '\n\n';
+      });
+      if (r.phone) reply += `Call us at ${r.phone} to book with a specific coach.`;
+      return reply.trim();
+    }
+
+    // Name/About (no longer catches 'who are the coaches' — that is handled above)
+    if (q.match(/^who |\bwho\b.*\b(are|is)\b|\babout us\b|\bwhat.*business\b/i)) {
+      if (!r.name) {
+        return 'Business info not configured yet.';
+      }
+      return `<b>🏢 About Us</b>\n\n${r.name}\n\nContact us for more information!`;
+    }
+
+    // Timezone/Location
+    if (q.match(/timezone|location|where|which.*time/i)) {
+      if (!r.timezone) {
+        return 'Location info not configured yet.';
+      }
+      return `<b>📍 Location</b>\n\nTimezone: ${r.timezone}\n\nFor full address, tap <b>☎️ Contact</b>.`;
+    }
+
+    return null; // No match
+  }
+
+  // Simple keyword-based Q&A matching for when AI is disabled (cheaper solution)
+  function findBestQAMatch(userQuestion, qaDatabase) {
+    if (!qaDatabase || qaDatabase.length === 0) return null;
+
+    const userWords = userQuestion.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+    let bestMatch = null;
+    let maxMatches = 0;
+
+    for (const qa of qaDatabase) {
+      const qaWords = (qa.question + ' ' + qa.answer).toLowerCase().split(/\s+/).filter(w => w.length > 2);
+      const matchCount = userWords.filter(w => qaWords.includes(w)).length;
+
+      if (matchCount > maxMatches) {
+        maxMatches = matchCount;
+        bestMatch = qa.answer;
+      }
+    }
+
+    // Return answer only if at least one keyword matched
+    return maxMatches > 0 ? bestMatch : null;
   }
 
   function editOrSend(chatId, messageId, text, options = {}) {
@@ -62,7 +204,14 @@ function initTelegram(token) {
       return null;
     }
     const displayDate = moment(session.date, 'YYYY-MM-DD').format('ddd MMM D, YYYY');
-    return `📄 *Current Selection*\n\n📅 ${displayDate}\n⏰ ${session.time}\n👥 ${session.partySize} ${session.partySize === 1 ? 'person' : 'people'}`;
+    let summary = `📄 *Current Selection*\n\n📅 ${displayDate}\n⏰ ${session.time}\n👥 ${session.partySize} ${session.partySize === 1 ? 'person' : 'people'}`;
+    
+    // Add coach info if available
+    if (session.coachName) {
+      summary += `\n👨‍🏫 Coach: ${session.coachName}`;
+    }
+    
+    return summary;
   }
 
   // Calendar with today's date highlighted
@@ -194,22 +343,6 @@ function initTelegram(token) {
     return { inline_keyboard: buttons };
   }
 
-  // /start command
-  bot.on('message', async (msg) => {
-    const chatId = msg.chat.id;
-    const text = (msg.text || '').trim();
-
-    if (!isAllowedUser(msg.chat)) {
-      bot.sendMessage(chatId, '⛔ You are not authorized to use this bot.');
-      return;
-    }
-
-    if (text === '/start') {
-      delete userSessions[chatId];
-      showMainMenu(chatId, 'Welcome! Use the buttons below to navigate:');
-    }
-  });
-
   // Callback query handler
   bot.on('callback_query', async (query) => {
     try {
@@ -283,7 +416,7 @@ function initTelegram(token) {
       userSessions[chatId] = session;
 
       const config = loadConfig();
-      const maxParty = config?.restaurant?.maxPartySize || 10;
+      const maxParty = config?.restaurant?.maxPartySize || 3;
       const partyRows = [];
       for (let i = 1; i <= Math.min(maxParty, 6); i++) {
         partyRows.push([{ text: `${i} ${i === 1 ? 'person' : 'people'}`, callback_data: `party_${i}` }]);
@@ -321,6 +454,73 @@ function initTelegram(token) {
       const partySize = parseInt(data.split('_')[1], 10);
       const session = userSessions[chatId] || {};
       session.partySize = partySize;
+      session.step = 'coach_selection';
+      userSessions[chatId] = session;
+
+      // Load coaches for selection
+      const config = loadConfig();
+      const coaches = config?.restaurant?.coaches || [];
+
+      if (coaches.length === 0) {
+        // No coaches configured, skip to confirmation
+        session.step = 'booking_confirm';
+        session.coachId = null;
+        session.coachName = null;
+        const summary = getSummaryCard(session);
+        const text = `Please confirm your booking:\n\n${summary}\n\n✅ Confirm or ❌ Cancel`;
+        editOrSend(chatId, query.message.message_id, text, {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '✅ Confirm', callback_data: 'confirm_yes' }, { text: '❌ Cancel', callback_data: 'confirm_no' }]
+            ]
+          }
+        });
+      } else {
+        // Show coach selection
+        const coachButtons = [
+          ...coaches.map(coach => [{ text: `${coach.name} (${coach.status === 'available' ? '🟢' : '🔴'})`, callback_data: `coach_${coach.id}` }]),
+          [{ text: '🎲 Any Coach', callback_data: 'coach_any' }]
+        ];
+        const text = `👥 *Who would you like your coach to be?*\n\nSelect a specific coach or choose "Any Coach" for the next available coach.`;
+        editOrSend(chatId, query.message.message_id, text, {
+          reply_markup: {
+            inline_keyboard: coachButtons
+          }
+        });
+      }
+      return;
+    }
+
+    // Coach selection
+    if (data.startsWith('coach_')) {
+      const coachId = data.slice('coach_'.length);
+      const session = userSessions[chatId] || {};
+      
+      if (coachId === 'any') {
+        // Auto-assign a random available coach instead of leaving unassigned
+        const cfg = loadConfig();
+        const allCoaches = cfg?.restaurant?.coaches || [];
+        const available = allCoaches.filter(c => c.status === 'available');
+        if (available.length > 0) {
+          const pick = available[Math.floor(Math.random() * available.length)];
+          session.coachId = pick.id;
+          session.coachName = pick.name;
+        } else {
+          session.coachId = null;
+          session.coachName = 'Any Available';
+        }
+        session.coachPreference = 'any';
+      } else {
+        const config = loadConfig();
+        const coaches = config?.restaurant?.coaches || [];
+        const selectedCoach = coaches.find(c => c.id === coachId);
+        if (selectedCoach) {
+          session.coachId = selectedCoach.id;
+          session.coachName = selectedCoach.name;
+          session.coachPreference = 'specific';
+        }
+      }
+      
       session.step = 'booking_confirm';
       userSessions[chatId] = session;
 
@@ -341,7 +541,7 @@ function initTelegram(token) {
     if (data === 'confirm_yes') {
       const session = userSessions[chatId];
       if (!session) {
-        bot.sendMessage(chatId, 'Session expired. Please start again.');
+        bot.sendMessage(chatId, `Session expired. Please start again.`);
         showMainMenu(chatId);
         return;
       }
@@ -350,11 +550,22 @@ function initTelegram(token) {
       const phone = chatId.toString();
 
       try {
-        const result = await createBooking(phone, session.partySize, session.date, session.time);
+        const result = await createBooking(
+          phone, 
+          session.partySize, 
+          session.date, 
+          session.time,
+          chatId,
+          session.coachId || null,
+          session.coachName || null,
+          session.coachPreference || null
+        );
         bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
 
         if (result.success) {
-          bot.sendMessage(chatId, `✅ *Booking confirmed!*\nReservation ID: \`${result.id}\``, { parse_mode: 'Markdown' });
+          const displayDate = moment(session.date, 'YYYY-MM-DD').format('ddd MMM D, YYYY');
+          const confirmMsg = `✅ *Booking Confirmed!*\n\n📅 Date: ${displayDate}\n⏰ Time: ${session.time}\n👥 People: ${session.partySize}\n👨‍🏫 Coach: ${session.coachName || 'Any available'}\n📌 Reservation ID: \`${result.id}\`\n\nSee you soon! 🎓`;
+          bot.sendMessage(chatId, confirmMsg, { parse_mode: 'Markdown' });
         } else {
           bot.sendMessage(chatId, `❌ Booking failed: ${result.message}`);
         }
@@ -396,7 +607,7 @@ function initTelegram(token) {
 
         if (result.success) {
           const displayDate = moment(cancelBookingDetails.date, 'YYYY-MM-DD').format('ddd MMM D, YYYY');
-          const summary = `✅ *Booking Cancelled*\n\n📅 Date: ${displayDate}\n⏰ Time: ${cancelBookingDetails.time}\n👥 Party: ${cancelBookingDetails.partySize}\n📌 Reservation ID: ${cancelBookingId}\n\nThis booking has been cancelled.`;
+          const summary = `❌ *Booking Cancelled*\n\n📅 Date: ${displayDate}\n⏰ Time: ${cancelBookingDetails.time}\n👥 Party: ${cancelBookingDetails.partySize}\n📌 Reservation ID: ${cancelBookingId}\n\nThis booking has been cancelled.`;
           bot.sendMessage(chatId, summary, { parse_mode: 'Markdown' });
         } else {
           bot.sendMessage(chatId, `❌ Could not cancel: ${result.message}`);
@@ -483,6 +694,17 @@ function initTelegram(token) {
 
     if (!text) return;
 
+    // Log inbound message
+    const _username = msg.from.username ? `@${msg.from.username}` : null;
+    if (_username) chatUsernames[String(chatId)] = _username;
+    logMessage({
+      platform: 'telegram',
+      chatId,
+      username: _username,
+      direction: 'inbound',
+      message: text
+    }).catch(() => {});
+
     // Authorization
     if (!isAllowedUser(msg.chat)) {
       bot.sendMessage(chatId, '⛔ You are not authorized to use this bot.');
@@ -499,28 +721,80 @@ function initTelegram(token) {
       return;
     }
 
+    // Dismiss keyboard
+    if (text === '✖️ Hide Menu' || text === '/hide') {
+      bot.sendMessage(chatId, 'Keyboard hidden. Send /start anytime to bring it back.', {
+        reply_markup: { remove_keyboard: true }
+      });
+      return;
+    }
+
     // Always handle these commands first (they override any session)
-    if (['/start', '📋 Menu', '/menu', '📅 Book a Table', '/book', '❌ Cancel Booking', '/cancel', '📋 My Bookings', '/mybookings'].includes(text)) {
+    if ([
+      '/start', '📋 Menu', '/menu',
+      '🎓 Book Session', '📅 Book a Table', '/book',
+      '📅 View Schedule', '/schedule',
+      '❌ Cancel Booking', '/cancel',
+      '📋 My Bookings', '/mybookings',
+      '💬 Ask a Question', '/ask',
+      '☎️ Contact', '/contact'
+    ].includes(text)) {
       delete userSessions[chatId];
 
-      if (text === '/start' || text === '📋 Menu' || text === '/menu') {
+      // Dismiss keyboard
+    if (text === '✖️ Hide Menu' || text === '/hide') {
+      bot.sendMessage(chatId, 'Keyboard hidden. Send /start anytime to bring it back.', {
+        reply_markup: { remove_keyboard: true }
+      });
+      return;
+    }
+
+    if (text === '/start' || text === '📋 Menu' || text === '/menu') {
         console.log(`[Menu] Requested by chatId=${chatId}, text="${text}"`);
         const menuResponse = getMenuText();
         console.log(`[Menu] Response length: ${menuResponse.length}`);
+        // First remove any old reply keyboard, then show menu with inline buttons
         bot.sendMessage(chatId, menuResponse, { parse_mode: 'Markdown' }).then(() => {
           console.log(`[Menu] Sent successfully to ${chatId}`);
           showMainMenu(chatId);
         }).catch(err => {
           console.error('[Menu] Send error:', err.message);
-          showMainMenu(chatId);
         });
         return;
       }
 
-      if (text === '📅 Book a Table' || text === '/book') {
+      if (text === '🎓 Book Session' || text === '📅 Book a Table' || text === '/book') {
         userSessions[chatId] = { step: 'booking_date' };
         const now = moment();
         showCalendar(chatId, now.year(), now.month());
+        return;
+      }
+
+      if (text === '📅 View Schedule' || text === '/schedule') {
+        const menuResponse = getMenuText();
+        bot.sendMessage(chatId, menuResponse, { parse_mode: 'Markdown' });
+        return;
+      }
+
+      if (text === '💬 Ask a Question' || text === '/ask') {
+        bot.sendMessage(chatId, 'Please type your question and I will do my best to help you. 😊');
+        // Next message will fall through to the smart Q&A handler
+        return;
+      }
+
+      if (text === '☎️ Contact' || text === '/contact') {
+        const config = loadConfig();
+        const r = config?.restaurant || {};
+        let contactMsg = `<b>📞 Contact Us</b>\n\n`;
+        if (r.name)    contactMsg += `🏢 <b>${r.name}</b>\n`;
+        if (r.phone)   contactMsg += `📱 ${r.phone}\n`;
+        if (r.email)   contactMsg += `📧 ${r.email}\n`;
+        if (r.address) contactMsg += `📍 ${r.address}\n`;
+        if (r.website) contactMsg += `🌐 ${r.website}\n`;
+        if (!r.phone && !r.email && !r.address && !r.website) {
+          contactMsg += 'No contact details configured yet.';
+        }
+        bot.sendMessage(chatId, contactMsg, { parse_mode: 'HTML' });
         return;
       }
 
@@ -537,16 +811,14 @@ function initTelegram(token) {
 
         if (myBookings.length === 0) {
           bot.sendMessage(chatId, `You have no active bookings.\n\nYour chat ID: ${phone}\nUsername: ${username || 'none'}\nTotal bookings in DB: ${bookings.length}\n\nUse /debug to see all bookings and their phone IDs.`);
-          showMainMenu(chatId);
           return;
         }
 
         let response = 'Your active bookings:\n\n';
         myBookings.forEach(b => {
-          response += `🔢 ID: ${b.id}\n📅 ${b.date} at ${b.time}\n👥 ${b.partySize} people\n\n`;
+          response += `🔢 ID: ${b.id}\n📅 ${b.date} at ${b.time}\n�‍🏫 Coach: ${b.coach_name || 'TBD'}\n�👥 ${b.partySize} people\n\n`;
         });
         bot.sendMessage(chatId, response);
-        showMainMenu(chatId);
         return;
       }
 
@@ -565,7 +837,6 @@ function initTelegram(token) {
 
         if (myBookings.length === 0) {
           bot.sendMessage(chatId, `No confirmed bookings found for your account.\n\nYour chat ID: ${phone}\nUsername: ${username || 'none'}\nTotal bookings in DB: ${bookings.length}\n\nUse /debug to see all bookings.`);
-          showMainMenu(chatId);
           return;
         }
 
@@ -582,72 +853,128 @@ function initTelegram(token) {
       }
     }
 
-    // If we reach here and there's no active session, forward to chatbot (or show main menu)
+    // If we reach here and there's no active session, try smart Q&A first
     if (!userSessions[chatId]) {
-      try {
-        const chatbotUrl = process.env.CHATBOT_URL || 'http://localhost:8000';
-        const postData = `question=${encodeURIComponent(text)}`;
-        const url = new URL('/query', chatbotUrl);
-        const response = await new Promise((resolve, reject) => {
-          const req = http.request(url, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'Content-Length': Buffer.byteLength(postData)
-            }
-          }, (res) => {
-            let data = '';
-            res.on('data', chunk => data += chunk);
-            res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
-          });
-          req.on('error', reject);
-          req.end(postData);
-        });
-        
-        if (response.statusCode === 200) {
-          const data = JSON.parse(response.body);
-          const answer = data.answer || 'Sorry, I could not find an answer.';
-          
-          // Check if this is an "I don't know" response
-          const isUnknown = answer.toLowerCase().includes("i don't know") || 
-                            answer.toLowerCase().includes("i don't have") ||
-                            answer.toLowerCase().includes("no relevant") ||
-                            !answer.trim();
-          
-          if (isUnknown) {
-            // Save unanswered question for staff review
-            try {
-              const { saveUnansweredQuestion } = require('./unanswered');
-              await saveUnansweredQuestion(String(chatId), text);
-              console.log(`[Telegram] Saved unanswered question: "${text}"`);
-            } catch (err) {
-              console.error('Error saving question:', err);
-            }
-            
-            // Send polite message instead of "I don't know"
-            const politeMessage = 
-              'Thank you for your question! 😊\n\n' +
-              'Let me check this and I will get back to you soon. ' +
-              'Our team will review your question and respond as soon as possible.\n\n' +
-              'You can also call us at +1234567890 for immediate assistance.';
-            
-            await bot.sendMessage(chatId, politeMessage);
-            console.log(`[Telegram] Sent polite message to ${chatId}`);
-          } else {
-            // Send the actual answer
-            await bot.sendMessage(chatId, answer);
-            console.log(`[Telegram] Sent answer to ${chatId}`);
-          }
-        } else {
-          console.error('Chatbot error:', response.statusCode, response.body);
-          await bot.sendMessage(chatId, 'Chatbot service error. Please try again.');
-        }
-      } catch (err) {
-        console.error('Chatbot query failed:', err);
-        await bot.sendMessage(chatId, 'Chatbot is currently unavailable.');
+      const config = loadConfig();
+      const restaurant = config?.restaurant || {};
+      
+      // First try smart Q&A keyword matching
+      const smartAnswer = getSmartAnswer(text);
+      if (smartAnswer) {
+        await bot.sendMessage(chatId, smartAnswer, { parse_mode: 'HTML' });
+        return;
       }
-      // Always show main menu after answering
-      showMainMenu(chatId);
+
+      // If AI is enabled, try Gemini with tool-calling support
+      if (restaurant.aiEnabled && process.env.GOOGLE_GEMINI_API_KEY) {
+        try {
+          const systemPrompt = GeminiChatbot.generateSystemPrompt(restaurant);
+          const geminiBot = new GeminiChatbot(process.env.GOOGLE_GEMINI_API_KEY, restaurant.aiModel || 'gemini-2.5-flash');
+          const aiResponse = await geminiBot.chatWithTools(text, systemPrompt, toolDeclarations, executeTool);
+          if (aiResponse) {
+            await bot.sendMessage(chatId, aiResponse);
+            console.log(`[Telegram] AI response generated for question: "${text}"`);
+            return;
+          }
+        } catch (err) {
+          console.error('[Telegram] Gemini AI error:', err.message);
+          // Fall through to polite contact fallback
+        }
+        // AI was enabled but returned nothing (no key, quota, error) — give polite fallback
+        if (!process.env.CHATBOT_URL) {
+          const phone = restaurant.phone || '';
+          const contactLine = phone ? `\n\nFor immediate help, please call us at <b>${phone}</b>.` : '\n\nPlease contact us directly and we will be happy to assist.';
+          await bot.sendMessage(chatId,
+            `😊 Thank you for your question! I don't have that specific information right now, but our team can help.${contactLine}`,
+            { parse_mode: 'HTML' }
+          );
+          return;
+        }
+      }
+
+      // If AI is disabled, try Q&A database as fallback (cheaper solution)
+      if (!restaurant.aiEnabled && restaurant.qaDatabase && restaurant.qaDatabase.length > 0) {
+        const qaAnswer = findBestQAMatch(text, restaurant.qaDatabase);
+        if (qaAnswer) {
+          await bot.sendMessage(chatId, qaAnswer);
+          console.log(`[Telegram] Q&A response generated for question: "${text}"`);
+          return;
+        }
+      }
+
+      // If no AI match, try external chatbot if configured
+      if (process.env.CHATBOT_URL) {
+        try {
+          const chatbotUrl = process.env.CHATBOT_URL;
+          const postData = `question=${encodeURIComponent(text)}`;
+          const url = new URL('/query', chatbotUrl);
+          const response = await new Promise((resolve, reject) => {
+            const req = http.request(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'Content-Length': Buffer.byteLength(postData)
+              }
+            }, (res) => {
+              let data = '';
+              res.on('data', chunk => data += chunk);
+              res.on('end', () => resolve({ statusCode: res.statusCode, body: data }));
+            });
+            req.on('error', reject);
+            req.end(postData);
+          });
+
+          if (response.statusCode === 200) {
+            const data = JSON.parse(response.body);
+            const answer = data.answer || 'Sorry, I could not find an answer.';
+
+            const isUnknown = answer.toLowerCase().includes("i don't know") ||
+                              answer.toLowerCase().includes("i don't have") ||
+                              answer.toLowerCase().includes("no relevant") ||
+                              !answer.trim();
+
+            if (isUnknown) {
+              try {
+                const { saveUnansweredQuestion } = require('./unanswered');
+                await saveUnansweredQuestion(String(chatId), text);
+                console.log(`[Telegram] Saved unanswered question: "${text}"`);
+              } catch (err) {
+                console.error('Error saving question:', err);
+              }
+              const config = loadConfig();
+              const phone = config?.restaurant?.phone || '';
+              const politeMessage =
+                'Thank you for your question! 😊\n\n' +
+                'Let me check this and I will get back to you soon. ' +
+                'Our team will review your question and respond as soon as possible.' +
+                (phone ? `\n\nYou can also call us at ${phone} for immediate assistance.` : '');
+              await bot.sendMessage(chatId, politeMessage);
+            } else {
+              await bot.sendMessage(chatId, answer);
+            }
+          } else {
+            console.error('Chatbot error:', response.statusCode, response.body);
+          }
+        } catch (err) {
+          console.error('Chatbot query failed:', err);
+        }
+      }
+      // No chatbot configured — save as unanswered question and reply politely
+      if (!process.env.CHATBOT_URL) {
+        try {
+          const { saveUnansweredQuestion } = require('./unanswered');
+          await saveUnansweredQuestion(String(chatId), text);
+          console.log(`[Telegram] Saved unanswered question: "${text}"`);
+        } catch (err) {
+          console.error('Error saving question:', err);
+        }
+        const config = loadConfig();
+        const phone = config?.restaurant?.phone || '';
+        const replyMsg = `🙏 Thank you for your message!\n\n` +
+          `I've noted your question and our team will get back to you soon.` +
+          (phone ? `\n\nFor urgent matters, call us at ${phone}.` : '');
+        await bot.sendMessage(chatId, replyMsg);
+      }
       return;
     }
 
@@ -732,7 +1059,7 @@ function initTelegram(token) {
         session.step = 'booking_party';
         userSessions[chatId] = session;
 
-        const maxPartySize = restaurant.maxPartySize || 10;
+        const maxPartySize = restaurant.maxPartySize || 3;
         bot.sendMessage(chatId, `📅 Date: ${session.date}\n⏰ Time: ${text}\n\nHow many people? (1-${maxPartySize})`);
         return;
       }
@@ -741,7 +1068,7 @@ function initTelegram(token) {
     // Party size typing
     if (session.step === 'booking_party') {
       const partySize = parseInt(text, 10);
-      const maxParty = config.maxPartySize || 10;
+      const maxParty = restaurant.maxPartySize || 3;
       if (partySize >= 1 && partySize <= maxParty) {
         session.partySize = partySize;
         session.step = 'booking_confirm';
@@ -763,7 +1090,10 @@ function initTelegram(token) {
         try {
           const result = await createBooking(phone, session.partySize, session.date, session.time);
           if (result.success) {
-            bot.sendMessage(chatId, `✅ Booking confirmed! ID: ${result.id}\n\nThank you!`);
+            const displayDate = moment(session.date, 'YYYY-MM-DD').format('ddd MMM D, YYYY');
+            const confirmMsg = `✅ *Booking Confirmed!*\n\n📅 Date: ${displayDate}\n⏰ Time: ${session.time}\n👥 People: ${session.partySize}\n👨‍🏫 Coach: ${session.coachName || 'Any available'}\n📌 Reservation ID: \`${result.id}\`\n\nSee you soon! 🎓`;
+            bot.sendMessage(chatId, confirmMsg, { parse_mode: 'Markdown' });
+            logMessage({ platform: 'telegram', chatId, direction: 'outbound', message: confirmMsg, msgType: 'booking' }).catch(() => {});
           } else {
             bot.sendMessage(chatId, `❌ Failed: ${result.message}`);
           }
@@ -784,11 +1114,11 @@ function initTelegram(token) {
 
     // If we get here with an active session but unrecognized input, prompt
     if (userSessions[chatId]) {
-      bot.sendMessage(chatId, 'Please follow the flow using buttons or type a valid value.');
+      bot.sendMessage(chatId, 'Invalid input. Please use the buttons or try again.');
       return;
     }
 
-    // Default: show main menu
+    // Default: show main menu (with keyboard for easier navigation)
     showMainMenu(chatId);
     } catch (err) {
       console.error('[Message Handler] Error:', err.message);

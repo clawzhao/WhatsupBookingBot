@@ -61,7 +61,7 @@ function setupTestConfig() {
 }
 
 function cleanupTestConfig() {
-  const configPath = path.join(__dirname, '../config/restaurant.json');
+  const configPath = path.join(__dirname, '../config/config.json');
   if (fs.existsSync(configPath)) {
     fs.unlinkSync(configPath);
   }
@@ -89,7 +89,7 @@ const { testConfig, setupTestConfig, cleanupTestConfig } = require('./helpers');
 const expect = require('chai').expect;
 
 describe('Config Module', () => {
-  const configPath = path.join(__dirname, '../config/restaurant.json');
+  const configPath = path.join(__dirname, '../config/config.json');
 
   beforeEach(() => {
     cleanupTestConfig();
@@ -161,7 +161,7 @@ describe('Menu Module', () => {
   });
 
   it('should handle missing config gracefully', () => {
-    const configPath = path.join(__dirname, '../config/restaurant.json');
+    const configPath = path.join(__dirname, '../config/config.json');
     if (fs.existsSync(configPath)) {
       fs.unlinkSync(configPath);
     }

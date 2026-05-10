@@ -1,0 +1,184 @@
+{
+  "restaurant": {
+    "name": "Professional Coaching Academy",
+    "phone": "+1-800-COACHING",
+    "email": "",
+    "address": "",
+    "website": "",
+    "timezone": "America/New_York",
+    "slotDuration": 60,
+    "maxPartySize": 3,
+    "aiEnabled": true,
+    "aiModel": "gemini-2.5-flash",
+    "aiApiKey": "",
+    "openingHours": {
+      "Monday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Tuesday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Wednesday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Thursday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Friday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Saturday": {
+        "open": "08:00",
+        "close": "18:00"
+      },
+      "Sunday": {
+        "open": "08:00",
+        "close": "18:00"
+      }
+    },
+    "menu": [
+      {
+        "id": "1",
+        "category": "Personal Training",
+        "name": "One-on-One Session",
+        "price": 75
+      },
+      {
+        "id": "2",
+        "category": "Personal Training",
+        "name": "5-Session Package",
+        "price": 350
+      },
+      {
+        "id": "3",
+        "category": "Group Training",
+        "name": "Small Group (3-5)",
+        "price": 45
+      },
+      {
+        "id": "4",
+        "category": "Group Training",
+        "name": "Large Group (6+)",
+        "price": 30
+      },
+      {
+        "id": "5",
+        "category": "Specialty",
+        "name": "Nutrition Consultation",
+        "price": 50
+      },
+      {
+        "id": "6",
+        "category": "Specialty",
+        "name": "Performance Assessment",
+        "price": 100
+      }
+    ],
+    "qaDatabase": [
+      {
+        "question": "What are your cancellation policies?",
+        "answer": "We offer a 24-hour cancellation policy. Cancellations made within 24 hours of your session will be charged in full. Contact us at the number above for more details."
+      },
+      {
+        "question": "Do you offer refunds?",
+        "answer": "Refunds are available for cancellations made more than 24 hours before your session. Package purchases are non-refundable after 7 days from purchase."
+      },
+      {
+        "question": "How do I book a session?",
+        "answer": "You can book a session directly through this chatbot using the 'Book Session' option, or contact us by phone for phone bookings."
+      },
+      {
+        "question": "What should I bring to a session?",
+        "answer": "Please bring comfortable workout clothes, athletic shoes, and a water bottle. We provide all necessary equipment. Arrive 10 minutes early for your first session."
+      },
+      {
+        "question": "Do you offer online sessions?",
+        "answer": "Currently, we offer in-person sessions only. However, we can discuss your specific needs - feel free to contact us at the number above."
+      }
+    ],
+    "coaches": [
+      {
+        "id": "coach_001",
+        "name": "Coach Alex",
+        "phone": "+1-800-COACH-1",
+        "email": "alex@academy.com",
+        "availability": {
+          "Monday": true,
+          "Tuesday": true,
+          "Wednesday": true,
+          "Thursday": true,
+          "Friday": true,
+          "Saturday": false,
+          "Sunday": false
+        },
+        "status": "available",
+        "specialties": [
+          "Personal Training",
+          "Group Training"
+        ]
+      },
+      {
+        "id": "coach_002",
+        "name": "Coach Jamie",
+        "phone": "+1-800-COACH-2",
+        "email": "jamie@academy.com",
+        "availability": {
+          "Monday": true,
+          "Tuesday": true,
+          "Wednesday": false,
+          "Thursday": true,
+          "Friday": true,
+          "Saturday": true,
+          "Sunday": false
+        },
+        "status": "available",
+        "specialties": [
+          "Group Training",
+          "Specialty"
+        ]
+      },
+      {
+        "id": "coach_003",
+        "name": "Coach Morgan",
+        "phone": "+1-800-COACH-3",
+        "email": "morgan@academy.com",
+        "availability": {
+          "Monday": true,
+          "Tuesday": false,
+          "Wednesday": true,
+          "Thursday": true,
+          "Friday": true,
+          "Saturday": true,
+          "Sunday": false
+        },
+        "status": "available",
+        "specialties": [
+          "Personal Training",
+          "Specialty"
+        ]
+      },
+      {
+        "id": "coach_1777896481693",
+        "name": "Coach Welvyn",
+        "phone": "+6593778888",
+        "email": "welvyn@acedemy.com",
+        "availability": {
+          "Monday": true,
+          "Tuesday": true,
+          "Wednesday": true,
+          "Thursday": true,
+          "Friday": true,
+          "Saturday": true,
+          "Sunday": true
+        },
+        "status": "available",
+        "specialties": []
+      }
+    ]
+  }
+}
