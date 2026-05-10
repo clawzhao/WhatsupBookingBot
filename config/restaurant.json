@@ -1,75 +1,77 @@
 {
-  "name": "Professional Coaching Academy",
-  "phone": "+1-800-COACHING",
-  "timezone": "America/New_York",
-  "slotDuration": 60,
-  "maxPartySize": 1,
-  "openingHours": {
-    "Monday": {
-      "open": "06:00",
-      "close": "20:00"
+  "restaurant": {
+    "name": "Professional Coaching Academy",
+    "phone": "+1-800-COACHING",
+    "timezone": "America/New_York",
+    "slotDuration": 60,
+    "maxPartySize": 1,
+    "openingHours": {
+      "Monday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Tuesday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Wednesday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Thursday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Friday": {
+        "open": "06:00",
+        "close": "20:00"
+      },
+      "Saturday": {
+        "open": "08:00",
+        "close": "18:00"
+      },
+      "Sunday": {
+        "open": "08:00",
+        "close": "18:00"
+      }
     },
-    "Tuesday": {
-      "open": "06:00",
-      "close": "20:00"
-    },
-    "Wednesday": {
-      "open": "06:00",
-      "close": "20:00"
-    },
-    "Thursday": {
-      "open": "06:00",
-      "close": "20:00"
-    },
-    "Friday": {
-      "open": "06:00",
-      "close": "20:00"
-    },
-    "Saturday": {
-      "open": "08:00",
-      "close": "18:00"
-    },
-    "Sunday": {
-      "open": "08:00",
-      "close": "18:00"
-    }
-  },
-  "menu": [
-    {
-      "id": "1",
-      "category": "Personal Training",
-      "name": "One-on-One Session",
-      "price": 75
-    },
-    {
-      "id": "2",
-      "category": "Personal Training",
-      "name": "5-Session Package",
-      "price": 350
-    },
-    {
-      "id": "3",
-      "category": "Group Training",
-      "name": "Small Group (3-5)",
-      "price": 45
-    },
-    {
-      "id": "4",
-      "category": "Group Training",
-      "name": "Large Group (6+)",
-      "price": 30
-    },
-    {
-      "id": "5",
-      "category": "Specialty",
-      "name": "Nutrition Consultation",
-      "price": 50
-    },
-    {
-      "id": "6",
-      "category": "Specialty",
-      "name": "Performance Assessment",
-      "price": 100
-    }
-  ]
+    "menu": [
+      {
+        "id": "1",
+        "category": "Personal Training",
+        "name": "One-on-One Session",
+        "price": 75
+      },
+      {
+        "id": "2",
+        "category": "Personal Training",
+        "name": "5-Session Package",
+        "price": 350
+      },
+      {
+        "id": "3",
+        "category": "Group Training",
+        "name": "Small Group (3-5)",
+        "price": 45
+      },
+      {
+        "id": "4",
+        "category": "Group Training",
+        "name": "Large Group (6+)",
+        "price": 30
+      },
+      {
+        "id": "5",
+        "category": "Specialty",
+        "name": "Nutrition Consultation",
+        "price": 50
+      },
+      {
+        "id": "6",
+        "category": "Specialty",
+        "name": "Performance Assessment",
+        "price": 100
+      }
+    ]
+  }
 }

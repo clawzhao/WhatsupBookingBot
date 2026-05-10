@@ -4,7 +4,8 @@ const cors = require('cors');
 const path = require('path');
 const { initWhatsApp } = require('./whatsapp');
 const { initTelegram } = require('./telegram');
-const { getAllBookings } = require('./booking');
+const { initCoachBots, getCoachBotStatus } = require('./coachBots');
+const { getAllBookings, dbReady } = require('./booking');
 const { loadConfig, saveConfig } = require('./config');
 const { getPendingQuestions, getAllQuestions, markAsAnswered } = require('./unanswered');
 
@@ -50,6 +51,12 @@ app.get('/api/bookings', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
+});
+
+// Coach Bot Status Endpoint
+app.get('/api/coach-bots/status', (req, res) => {
+  const statuses = getCoachBotStatus();
+  res.json({ coachBots: statuses });
 });
 
 // Chatbot Proxy Endpoints - disabled for stability; call chatbot directly
@@ -105,7 +112,7 @@ app.post('/api/unanswered-questions/:id/respond', async (req, res) => {
 module.exports = { app };
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, async () => {
     console.log(`Server is running on http://localhost:${port}`);
     // Initialize messaging platforms
     const waEnabled = process.env.WHATSAPP_ENABLED !== 'false';
@@ -123,6 +130,13 @@ if (require.main === module) {
     } else {
       console.log('Telegram disabled (set TELEGRAM_BOT_TOKEN to enable)');
     }
+
+    // Wait for database tables to be ready before initializing coach bots
+    // Coach data is stored in SQLite (coaches table), not in JSON config
+    console.log('Waiting for database initialization...');
+    await dbReady;
+    console.log('Database ready. Initializing Coach Telegram Bots...');
+    await initCoachBots();
   });
 }
 
@@ -132,7 +146,7 @@ app.post('/api/test-telegram', async (req, res) => {
     const { message, chatId } = req.body;
     
     if (!chatId) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'chatId required. Start a telegram conversation with the bot first to get your chat ID.'
       });
     }

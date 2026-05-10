@@ -16,7 +16,17 @@ if (!fs.existsSync(dataDir)) {
 
 const db = new sqlite3.Database(dbPath);
 
-function initDB() {
+/** Simple round-robin coach assignment counter */
+let coachAssignmentIndex = 0;
+
+/** Cached list of coaches loaded from DB */
+let cachedCoaches = [];
+
+/**
+ * Promise that resolves when the database tables are fully initialized.
+ * Used by index.js to wait before initializing coach bots.
+ */
+const dbReady = new Promise((resolve) => {
   db.serialize(() => {
     db.run(`
       CREATE TABLE IF NOT EXISTS bookings (
@@ -25,14 +35,53 @@ function initDB() {
         partySize INTEGER NOT NULL,
         date TEXT NOT NULL,
         time TEXT NOT NULL,
+        coach_id TEXT DEFAULT '',
         status TEXT DEFAULT 'confirmed'
       )
     `);
+
+    // Add coach_id column if it doesn't exist — ignore error if already exists
+    db.run(`ALTER TABLE bookings ADD COLUMN coach_id TEXT DEFAULT ''`, (err) => {
+      if (err) {
+        // Column already exists — this is expected for new databases
+        // where CREATE TABLE already includes coach_id
+      }
+    });
+
+    db.run(`
+      CREATE TABLE IF NOT EXISTS coaches (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        phone TEXT DEFAULT '',
+        telegram_bot_token TEXT DEFAULT '',
+        telegram_chat_id TEXT DEFAULT '',
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `, () => {
+      // Tables created — now seed defaults and load cache
+      const { seedDefaultCoaches } = require('./coachService');
+      seedDefaultCoaches().then(() => {
+        refreshCoachCache();
+      }).catch(err => {
+        console.warn('Failed to seed coaches:', err.message);
+      }).finally(() => {
+        resolve(); // Signal that DB is ready
+      });
+    });
+  });
+});
+
+function refreshCoachCache() {
+  const db2 = new sqlite3.Database(dbPath);
+  db2.all('SELECT * FROM coaches WHERE is_active = 1 ORDER BY name ASC', [], (err, rows) => {
+    db2.close();
+    if (!err) {
+      cachedCoaches = rows || [];
+    }
   });
 }
-
-// Initialize DB on load
-initDB();
 
 function getDayName(dateString) {
   return moment(dateString, 'YYYY-MM-DD').format('dddd');
@@ -41,6 +90,27 @@ function getDayName(dateString) {
 function parseTime(timeStr) {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+/**
+ * Assign a coach to a booking using round-robin from the coaches table.
+ * Returns the coach ID, or empty string if no coaches are configured.
+ */
+function assignCoach() {
+  if (cachedCoaches.length === 0) return '';
+
+  const coach = cachedCoaches[coachAssignmentIndex % cachedCoaches.length];
+  coachAssignmentIndex++;
+  return coach.id;
+}
+
+/**
+ * Get coach name by ID from the cached coaches list.
+ */
+function getCoachName(coachId) {
+  if (!coachId) return '';
+  const coach = cachedCoaches.find(c => c.id === coachId);
+  return coach?.name || coachId;
 }
 
 function validateBooking(date, time, partySize) {
@@ -77,20 +147,48 @@ function validateBooking(date, time, partySize) {
   return { valid: true };
 }
 
-function createBooking(phone, partySize, date, time) {
+function createBooking(phone, partySize, date, time, coachId) {
   return new Promise((resolve, reject) => {
     const validation = validateBooking(date, time, partySize);
     if (!validation.valid) {
       return resolve({ success: false, message: validation.message });
     }
 
-    const stmt = db.prepare('INSERT INTO bookings (phone, partySize, date, time) VALUES (?, ?, ?, ?)');
-    stmt.run([phone, partySize, date, time], function(err) {
+    // Assign coach if not provided
+    const assignedCoachId = coachId || assignCoach();
+
+    const stmt = db.prepare('INSERT INTO bookings (phone, partySize, date, time, coach_id) VALUES (?, ?, ?, ?, ?)');
+    stmt.run([phone, partySize, date, time, assignedCoachId], async function(err) {
       if (err) {
         console.error('Create booking error:', err);
         return resolve({ success: false, message: 'Internal server error.' });
       }
-      resolve({ success: true, id: this.lastID, message: `Booking confirmed! ID: ${this.lastID}` });
+
+      const booking = {
+        id: this.lastID,
+        phone,
+        partySize,
+        date,
+        time,
+        coach_id: assignedCoachId
+      };
+
+      // Notify the assigned coach via their Telegram bot
+      if (assignedCoachId) {
+        try {
+          const { notifyCoachOfBooking } = require('./coachBots');
+          await notifyCoachOfBooking(booking, assignedCoachId);
+        } catch (notifyErr) {
+          console.error('Coach notification error:', notifyErr.message);
+        }
+      }
+
+      resolve({
+        success: true,
+        id: this.lastID,
+        coach_id: assignedCoachId,
+        message: `Booking confirmed! ID: ${this.lastID}`
+      });
     });
   });
 }
@@ -106,11 +204,22 @@ function cancelBooking(phone, id) {
         return resolve({ success: false, message: 'Booking not found or already cancelled.' });
       }
 
-      db.run('UPDATE bookings SET status = ? WHERE id = ?', ['cancelled', id], function(updateErr) {
+      db.run('UPDATE bookings SET status = ? WHERE id = ?', ['cancelled', id], async function(updateErr) {
         if (updateErr) {
           console.error('Update booking error:', updateErr);
           return resolve({ success: false, message: 'Failed to cancel booking.' });
         }
+
+        // Notify the coach of cancellation
+        if (row.coach_id) {
+          try {
+            const { notifyCoachOfCancellation } = require('./coachBots');
+            await notifyCoachOfCancellation(row, row.coach_id);
+          } catch (notifyErr) {
+            console.error('Coach cancellation notification error:', notifyErr.message);
+          }
+        }
+
         resolve({ success: true, message: `Booking ID ${id} has been cancelled successfully.` });
       });
     });
@@ -144,5 +253,8 @@ module.exports = {
   cancelBooking,
   getAllBookings,
   clearBookings,
+  assignCoach,
+  getCoachName,
+  dbReady,
   db // exported for advanced test scenarios (use with caution)
 };
