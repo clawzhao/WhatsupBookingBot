@@ -4,7 +4,15 @@ const cors = require('cors');
 const path = require('path');
 const { initWhatsApp } = require('./whatsapp');
 const { initTelegram } = require('./telegram');
-const { getAllBookings, updateBookingCoach, createUnavailability, getUnavailability, deleteUnavailability } = require('./booking');
+const { initCoachBots, getCoachBotStatus } = require('./coachBots');
+const {
+  getAllBookings,
+  updateBookingCoach,
+  createUnavailability,
+  getUnavailability,
+  deleteUnavailability,
+  dbReady
+} = require('./booking');
 const { loadConfig, saveConfig } = require('./config');
 const { getPendingQuestions, getAllQuestions, markAsAnswered } = require('./unanswered');
 const { getConversations, getMessages } = require('./chatlog');
@@ -62,6 +70,12 @@ app.get('/api/bookings', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
+});
+
+// Coach Bot Status Endpoint
+app.get('/api/coach-bots/status', (req, res) => {
+  const statuses = getCoachBotStatus();
+  res.json({ coachBots: statuses });
 });
 
 // Chatbot Proxy Endpoints - disabled for stability; call chatbot directly
@@ -357,7 +371,7 @@ app.post('/api/coach-unavailability/notify', async (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(port, () => {
+  app.listen(port, async () => {
     console.log(`Server is running on http://localhost:${port}`);
     // Initialize messaging platforms
     const waEnabled = process.env.WHATSAPP_ENABLED !== 'false';
@@ -376,12 +390,16 @@ if (require.main === module) {
       console.log('Telegram disabled (set TELEGRAM_BOT_TOKEN to enable)');
     }
 
-    // Load Gemini API key from config if available
     const config = loadConfig();
     if (config?.restaurant?.aiApiKey && config.restaurant.aiEnabled) {
       process.env.GOOGLE_GEMINI_API_KEY = config.restaurant.aiApiKey;
       console.log('[Config] Gemini AI enabled and API key loaded from config');
     }
+
+    console.log('Waiting for database initialization...');
+    await dbReady;
+    console.log('Database ready. Initializing Coach Telegram Bots...');
+    await initCoachBots();
   });
 }
 
@@ -391,7 +409,7 @@ app.post('/api/test-telegram', async (req, res) => {
     const { message, chatId } = req.body;
     
     if (!chatId) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'chatId required. Start a telegram conversation with the bot first to get your chat ID.'
       });
     }
