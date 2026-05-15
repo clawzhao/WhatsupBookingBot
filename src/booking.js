@@ -64,6 +64,8 @@ const dbReady = new Promise((resolve) => {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         phone TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        profile_json TEXT DEFAULT '{}',
         telegram_bot_token TEXT DEFAULT '',
         telegram_chat_id TEXT DEFAULT '',
         is_active INTEGER DEFAULT 1,
@@ -94,11 +96,27 @@ const dbReady = new Promise((resolve) => {
         addIfMissing('updated_at', 'updated_at TEXT');
       }
 
-      const { seedDefaultCoaches } = require('./coachService');
-      seedDefaultCoaches()
-        .then(() => refreshCoachCache())
-        .catch((e) => console.warn('Failed to seed coaches:', e.message))
-        .finally(() => resolve());
+      db.all('PRAGMA table_info(coaches)', (cerr, coachCols) => {
+        if (!cerr && coachCols) {
+          const coachColumnNames = coachCols.map(c => c.name);
+          const addCoachCol = (colName, colDef) => {
+            if (!coachColumnNames.includes(colName)) {
+              db.run(`ALTER TABLE coaches ADD COLUMN ${colDef}`, (aerr) => {
+                if (aerr) console.error(`Failed to add coaches.${colName}:`, aerr);
+                else console.log(`[DB] Migration: Added ${colName} to coaches table`);
+              });
+            }
+          };
+          addCoachCol('email', "email TEXT DEFAULT ''");
+          addCoachCol('profile_json', "profile_json TEXT DEFAULT '{}'");
+        }
+
+        const { seedDefaultCoaches } = require('./coachService');
+        seedDefaultCoaches()
+          .then(() => refreshCoachCache())
+          .catch((e) => console.warn('Failed to seed coaches:', e.message))
+          .finally(() => resolve());
+      });
     });
   });
 });
@@ -349,5 +367,6 @@ module.exports = {
   assignCoach,
   getCoachName,
   dbReady,
+  refreshCoachCache,
   db // exported for advanced test scenarios (use with caution)
 };

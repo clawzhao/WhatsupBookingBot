@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coach Management — Admin</title>
+  <script src="api.js"></script>
   <style>
     /* Design System */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -342,13 +343,24 @@
 
     .modal-content {
       background-color: var(--surface);
-      margin: 5% auto;
+      margin: 3% auto;
       padding: 24px;
       border-radius: var(--radius);
       width: 90%;
-      max-width: 500px;
+      max-width: 560px;
+      max-height: 92vh;
+      overflow-y: auto;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
     }
+
+    .hint {
+      font-size: .8rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+      margin-bottom: 8px;
+    }
+
+    code { font-size: .85em; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 
     .modal-header {
       font-size: 1.25rem;
@@ -414,6 +426,22 @@
     <div class="content">
       <div id="status-msg" class="status-msg"></div>
 
+      <div class="card">
+        <div class="form-group" style="margin-bottom:0;">
+          <label>Test main booking bot (customer bot)</label>
+          <p class="hint">Uses <code>TELEGRAM_BOT_TOKEN</code> from server <code>.env</code>. Get your numeric chat ID from @userinfobot or by messaging your bot and checking server logs.</p>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Your Telegram chat ID</label>
+              <input type="text" id="main-bot-chat-id" placeholder="e.g. 123456789" autocomplete="off">
+            </div>
+          </div>
+          <div class="button-group">
+            <button type="button" class="btn-secondary" onclick="sendMainBotTest()">Send test via main bot</button>
+          </div>
+        </div>
+      </div>
+
       <div class="coaches-grid" id="coaches-grid">
         <!-- Populated via JS -->
       </div>
@@ -439,6 +467,19 @@
         <div class="form-group">
           <label>Email</label>
           <input type="email" id="coach-email" placeholder="coach@academy.com">
+        </div>
+      </div>
+
+      <div class="form-group" style="padding-top: 12px; border-top: 1px solid var(--border);">
+        <label>Coach notification Telegram bot</label>
+        <p class="hint">Each coach can have their own bot from @BotFather for booking alerts. Paste the token below to store it (it is not shown again after saving). The coach must open that bot in Telegram and send <code>/start</code> once so we know their chat ID.</p>
+        <input type="password" id="coach-telegram-token" placeholder="New token — leave blank to keep existing" autocomplete="off">
+        <p id="coach-tg-hint" class="hint" style="margin-top:8px;"></p>
+        <label class="checkbox-item" style="margin-top:10px;">
+          <input type="checkbox" id="coach-clear-tg-token"> Remove saved bot token
+        </label>
+        <div class="button-group" id="coach-tg-test-wrap" style="margin-top:12px; display: none;">
+          <button type="button" class="btn-secondary" onclick="sendCoachBotTest()">Send test via this coach’s bot</button>
         </div>
       </div>
 
@@ -477,22 +518,21 @@
   </div>
 
   <script>
-    let _currentConfig = {};
+    let _coachesList = [];
     let _editingCoachId = null;
 
     async function loadCoaches() {
       try {
-        const response = await fetch('/api/config');
-        _currentConfig = await response.json();
-        const coaches = _currentConfig.restaurant?.coaches || [];
+        const response = await fetch('/api/coaches');
+        _coachesList = await response.json();
 
         const grid = document.getElementById('coaches-grid');
-        if (coaches.length === 0) {
-          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 48px; color: #999;">No coaches added yet. Click "+ Add Coach" to create one.</div>';
+        if (_coachesList.length === 0) {
+          grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 48px; color: #999;">No coaches in the database yet. Click "+ Add Coach" or set COACH_SIMULATION_BOT_TOKEN in .env and restart.</div>';
           return;
         }
 
-        grid.innerHTML = coaches.map(coach => `
+        grid.innerHTML = _coachesList.map(coach => `
           <div class="coach-card">
             <div class="coach-header">
               <div class="coach-avatar">${coach.name.charAt(0).toUpperCase()}</div>
@@ -507,6 +547,7 @@
               <p>📞 ${coach.phone || 'N/A'}</p>
               <p>✉️ ${coach.email || 'N/A'}</p>
               <p>📅 ${coach.availability ? Object.entries(coach.availability).filter(([_, v]) => v).map(([d]) => d.substring(0, 3)).join(', ') : 'Not set'}</p>
+              ${coach.has_notification_bot ? `<p>🤖 Coach bot token saved${coach.coach_telegram_linked ? ' · ✓ /start linked' : ' · needs /start on coach bot'}</p>` : ''}
             </div>
             <div class="coach-actions">
               <button class="btn-secondary" onclick="editCoach('${coach.id}')">Edit</button>
@@ -520,19 +561,27 @@
       }
     }
 
+    function resetCoachTelegramFields() {
+      document.getElementById('coach-telegram-token').value = '';
+      document.getElementById('coach-clear-tg-token').checked = false;
+      document.getElementById('coach-tg-hint').textContent = '';
+      document.getElementById('coach-tg-test-wrap').style.display = 'none';
+    }
+
     function openAddCoachModal() {
       _editingCoachId = null;
       document.getElementById('modalTitle').textContent = 'Add New Coach';
       document.getElementById('coach-name').value = '';
       document.getElementById('coach-phone').value = '';
       document.getElementById('coach-email').value = '';
+      resetCoachTelegramFields();
+      document.getElementById('coach-tg-hint').textContent = 'Optional: add a @BotFather token so this coach gets booking notifications on their own bot.';
       document.querySelectorAll('input[data-day]').forEach(el => el.checked = el.dataset.day !== 'Saturday' && el.dataset.day !== 'Sunday');
       document.getElementById('coachModal').classList.add('active');
     }
 
-    function editCoach(coachId) {
-      const coaches = _currentConfig.restaurant?.coaches || [];
-      const coach = coaches.find(c => c.id === coachId);
+    async function editCoach(coachId) {
+      const coach = _coachesList.find(c => c.id === coachId);
       if (!coach) return;
 
       _editingCoachId = coachId;
@@ -543,6 +592,26 @@
       document.querySelectorAll('input[data-day]').forEach(el => {
         el.checked = coach.availability[el.dataset.day] === true;
       });
+      resetCoachTelegramFields();
+      document.getElementById('coach-tg-test-wrap').style.display = 'block';
+
+      try {
+        const res = await fetch('/api/coaches/' + encodeURIComponent(coachId));
+        if (res.ok) {
+          const detail = await res.json();
+          const hintEl = document.getElementById('coach-tg-hint');
+          if (detail.has_notification_bot) {
+            hintEl.textContent = detail.coach_telegram_linked
+              ? '✓ Bot token is saved and this coach has sent /start — you can send a test below.'
+              : 'Token saved. Open this coach’s bot in Telegram and send /start, then use “Send test”.';
+          } else {
+            hintEl.textContent = 'No bot token saved yet. Paste a token from @BotFather to enable coach notifications.';
+          }
+        }
+      } catch (e) {
+        document.getElementById('coach-tg-hint').textContent = 'Could not load coach Telegram status.';
+      }
+
       document.getElementById('coachModal').classList.add('active');
     }
 
@@ -551,7 +620,7 @@
       _editingCoachId = null;
     }
 
-    function saveCoach() {
+    async function saveCoach() {
       const name = document.getElementById('coach-name').value.trim();
       const phone = document.getElementById('coach-phone').value.trim();
       const email = document.getElementById('coach-email').value.trim();
@@ -567,29 +636,61 @@
         availability[day] = cb.checked;
       });
 
-      let coaches = _currentConfig.restaurant?.coaches || [];
+      const prev = _editingCoachId ? _coachesList.find(c => c.id === _editingCoachId) : null;
+      const specialties = (prev && prev.specialties) ? prev.specialties : [];
 
-      if (_editingCoachId) {
-        const index = coaches.findIndex(c => c.id === _editingCoachId);
-        if (index >= 0) {
-          coaches[index] = { ...coaches[index], name, phone, email, availability };
-        }
+      const body = {
+        id: _editingCoachId || undefined,
+        name,
+        phone,
+        email,
+        availability,
+        status: 'available',
+        specialties
+      };
+
+      if (document.getElementById('coach-clear-tg-token').checked) {
+        body.clear_coach_bot_token = true;
       } else {
-        const id = 'coach_' + Date.now();
-        coaches.push({ id, name, phone, email, availability, status: 'available', specialties: [] });
+        const tok = document.getElementById('coach-telegram-token').value.trim();
+        if (tok) body.telegram_bot_token = tok;
       }
 
-      _currentConfig.restaurant.coaches = coaches;
-      saveConfig();
+      try {
+        const response = await fetch('/api/coaches', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        if (response.ok) {
+          showStatus('✓ Coach saved', 'success');
+          closeCoachModal();
+          loadCoaches();
+        } else {
+          const err = await response.json().catch(() => ({}));
+          showStatus('✗ ' + (err.error || 'Failed to save coach'), 'error');
+        }
+      } catch (error) {
+        console.error('Save error:', error);
+        showStatus('✗ Error saving coach', 'error');
+      }
     }
 
-    function deleteCoach(coachId) {
+    async function deleteCoach(coachId) {
       if (!confirm('Are you sure you want to remove this coach?')) return;
 
-      let coaches = _currentConfig.restaurant?.coaches || [];
-      coaches = coaches.filter(c => c.id !== coachId);
-      _currentConfig.restaurant.coaches = coaches;
-      saveConfig();
+      try {
+        const response = await fetch('/api/coaches/' + encodeURIComponent(coachId), { method: 'DELETE' });
+        if (response.ok) {
+          showStatus('✓ Coach removed', 'success');
+          loadCoaches();
+        } else {
+          showStatus('✗ Failed to remove coach', 'error');
+        }
+      } catch (error) {
+        console.error('Delete error:', error);
+        showStatus('✗ Error removing coach', 'error');
+      }
     }
 
     function showStatus(msg, type) {
@@ -599,24 +700,48 @@
       setTimeout(() => statusEl.className = 'status-msg', 5000);
     }
 
-    async function saveConfig() {
+    async function sendMainBotTest() {
+      const chatId = document.getElementById('main-bot-chat-id').value.trim();
+      if (!chatId) {
+        showStatus('Enter your Telegram chat ID first.', 'error');
+        return;
+      }
       try {
-        const response = await fetch('/api/config', {
+        const res = await fetch('/api/test-telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(_currentConfig)
+          body: JSON.stringify({ chatId, message: '✅ Test from Swimming Booking admin (main customer bot).' })
         });
-
-        if (response.ok) {
-          showStatus('✓ Coaches updated successfully!', 'success');
-          closeCoachModal();
-          loadCoaches();
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showStatus('✓ Main bot test sent. Check Telegram.', 'success');
         } else {
-          showStatus('✗ Failed to save coaches', 'error');
+          showStatus('✗ ' + (data.error || 'Failed'), 'error');
         }
-      } catch (error) {
-        console.error('Save error:', error);
-        showStatus('✗ Error saving coaches', 'error');
+      } catch (e) {
+        showStatus('✗ Network error', 'error');
+      }
+    }
+
+    async function sendCoachBotTest() {
+      if (!_editingCoachId) {
+        showStatus('Open a coach with Edit first.', 'error');
+        return;
+      }
+      try {
+        const res = await fetch('/api/coaches/' + encodeURIComponent(_editingCoachId) + '/test-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          showStatus('✓ Coach bot test sent. Check Telegram on the coach’s account.', 'success');
+        } else {
+          showStatus('✗ ' + (data.error || 'Failed'), 'error');
+        }
+      } catch (e) {
+        showStatus('✗ Network error', 'error');
       }
     }
 

@@ -9,6 +9,7 @@
 
 const { loadConfig } = require('./config');
 const moment = require('moment-timezone');
+const coachService = require('./coachService');
 
 // ─── Skill Handlers ──────────────────────────────────────────────────────────
 
@@ -18,8 +19,7 @@ const skillHandlers = {
    * List all coaches with name, status, and specialties.
    */
   get_coaches: async () => {
-    const config = loadConfig();
-    const coaches = config?.restaurant?.coaches || [];
+    const coaches = await coachService.listPublicCoaches();
     return {
       count: coaches.length,
       coaches: coaches.map(c => ({
@@ -35,8 +35,7 @@ const skillHandlers = {
    * Get full details for one coach: contact number, email, schedule, specialties.
    */
   get_coach_details: async ({ coach_name }) => {
-    const config = loadConfig();
-    const coaches = config?.restaurant?.coaches || [];
+    const coaches = await coachService.listPublicCoaches();
     const coach = coaches.find(c =>
       c.name.toLowerCase().includes((coach_name || '').toLowerCase()) ||
       c.id === coach_name
@@ -61,13 +60,15 @@ const skillHandlers = {
    */
   get_available_coaches_on_date: async ({ date }) => {
     const config = loadConfig();
-    const coaches = config?.restaurant?.coaches || [];
+    const coaches = await coachService.listPublicCoaches();
     const tz = config?.restaurant?.timezone || 'UTC';
     const dayName = moment.tz(date, 'YYYY-MM-DD', tz).format('dddd');
-    const available = coaches.filter(c =>
-      c.status !== 'unavailable' &&
-      c.availability?.[dayName] !== false
-    );
+    const available = coaches.filter(c => {
+      if (c.status === 'unavailable') return false;
+      const avail = c.availability || {};
+      if (Object.keys(avail).length === 0) return true;
+      return avail[dayName] !== false;
+    });
     return {
       date,
       day_of_week: dayName,

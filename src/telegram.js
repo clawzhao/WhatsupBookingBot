@@ -8,11 +8,20 @@ const http = require('http');
 const GeminiChatbot = require('./gemini-chatbot');
 const { toolDeclarations, executeTool } = require('./bot-skills');
 
-console.log('[Telegram] Bot module loaded - v2'); // version marker
+console.log('[Telegram] Bot module loaded - v3'); // version marker
 
 let bot = null;
 const userSessions = {};
 const chatUsernames = {}; // chatId -> '@username' for outbound log enrichment
+
+// Debug: Global check for any Telegram updates
+setInterval(() => {
+  if (bot && bot.isPolling()) {
+    // Polling is active
+  } else if (bot) {
+    console.warn('[Telegram] Warning: Polling is NOT active!');
+  }
+}, 10000);
 
 function initTelegram(token) {
   if (!token) {
@@ -20,7 +29,16 @@ function initTelegram(token) {
     return null;
   }
 
+  console.log(`[Telegram] Initializing bot with token starting with: ${token.slice(0, 10)}...`);
   bot = new TelegramBot(token, { polling: true });
+
+  bot.getMe().then(me => {
+    console.log(`[Telegram] Bot is logged in as @${me.username} (${me.first_name})`);
+  }).catch(err => {
+    console.error(`[Telegram] Failed to get bot info: ${err.message}`);
+  });
+
+  console.log('[Telegram] Registering message handlers...');
 
   // ── Outbound logging: intercept every sendMessage and log it ──────────────
   const _botSendMessage = bot.sendMessage.bind(bot);
@@ -48,17 +66,28 @@ function initTelegram(token) {
     return ALLOWED_USERS.includes(String(chat.id));
   }
 
-  // Main menu keyboard (reply)
+  // Main menu keyboard (reply keyboard - text buttons)
   const mainMenuKeyboard = {
     reply_markup: {
       keyboard: [
-        ['🎓 Book Session', '📅 View Schedule'],
-        ['❌ Cancel Booking', '📋 My Bookings'],
-        ['💬 Ask a Question', '☎️ Contact']
+        ['\ud83c\udf93 Book Session', '\ud83d\udcc5 View Schedule'],
+        ['\u274c Cancel Booking', '\ud83d\udccb My Bookings'],
+        ['\ud83d\udcac Ask a Question', '\u260e\ufe0f Contact']
       ],
       resize_keyboard: true,
       one_time_keyboard: false,
       is_persistent: true
+    }
+  };
+
+  // Inline version for better reliability
+  const mainInlineKeyboard = {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: '\ud83c\udf93 Book Session', callback_data: 'start_booking' }, { text: '\ud83d\udcc5 View Schedule', callback_data: 'view_schedule' }],
+        [{ text: '\u274c Cancel Booking', callback_data: 'cancel_booking' }, { text: '\ud83d\udccb My Bookings', callback_data: 'my_bookings' }],
+        [{ text: '\ud83d\udcac Ask a Question', callback_data: 'ask_question' }, { text: '\u260e\ufe0f Contact', callback_data: 'view_contact' }]
+      ]
     }
   };
 
@@ -67,10 +96,11 @@ function initTelegram(token) {
   }
 
   // Smart Q&A matching for common questions
-  function getSmartAnswer(question) {
+  async function getSmartAnswer(question) {
     const q = question.toLowerCase().trim();
     const config = loadConfig();
-    const r = config?.restaurant || {};
+    const r = config?.restaurant || config || {};
+    const coachService = require('./coachService');
 
     // Hours
     if (q.match(/hour|open|close|when|time/i)) {
@@ -125,7 +155,12 @@ function initTelegram(token) {
 
     // Coaches / trainers — must be checked BEFORE the generic 'who/about' handler
     if (q.match(/coach|trainer|instructor|staff|team\s*member/i)) {
-      const coaches = (r.coaches || []).filter(c => c.status !== 'unavailable');
+      let coaches = [];
+      try {
+        coaches = (await coachService.listPublicCoaches()).filter(c => c.status !== 'unavailable');
+      } catch (_) {
+        coaches = [];
+      }
       if (!coaches.length) {
         const phone = r.phone ? `\n\nFor details, call us at ${r.phone}.` : '';
         return `We have a team of professional coaches available.${phone}`;
@@ -287,7 +322,7 @@ function initTelegram(token) {
   // Time slots with smart suggestion
   function generateTimeSlots(dateStr, includeBack = true) {
     const config = loadConfig();
-    const restaurant = config?.restaurant || {};
+    const restaurant = config?.restaurant || config || {};
     const timezone = restaurant.timezone || 'UTC';
     const dayName = moment.tz(dateStr, 'YYYY-MM-DD', timezone).format('dddd');
     const dayHours = restaurant.openingHours?.[dayName];
@@ -359,13 +394,43 @@ function initTelegram(token) {
 
       if (data === 'ignore' || data === 'error') return;
 
-    // Main menu
-    if (data === 'main_menu') {
-      delete userSessions[chatId];
-      bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
-      showMainMenu(chatId);
-      return;
-    }
+      // Main menu / Back to Start
+      if (data === 'main_menu' || data === 'back_to_start') {
+        delete userSessions[chatId];
+        bot.deleteMessage(chatId, query.message.message_id).catch(() => {});
+        showMainMenu(chatId);
+        return;
+      }
+
+      // New reliable inline handlers
+      if (data === 'start_booking') {
+        userSessions[chatId] = { step: 'booking_date' };
+        const now = moment();
+        showCalendar(chatId, now.year(), now.month());
+        return;
+      }
+      if (data === 'view_schedule') {
+        const menuResponse = getMenuText();
+        bot.sendMessage(chatId, menuResponse, { parse_mode: 'Markdown' });
+        return;
+      }
+      if (data === 'cancel_booking') {
+        // Trigger cancel logic (simulating the /cancel command)
+        bot.emit('message', { chat: { id: chatId }, text: '/cancel', from: query.from });
+        return;
+      }
+      if (data === 'my_bookings') {
+        bot.emit('message', { chat: { id: chatId }, text: '/mybookings', from: query.from });
+        return;
+      }
+      if (data === 'ask_question') {
+        bot.sendMessage(chatId, 'Please type your question and I will do my best to help you. 😊');
+        return;
+      }
+      if (data === 'view_contact') {
+        bot.emit('message', { chat: { id: chatId }, text: '/contact', from: query.from });
+        return;
+      }
 
     // Calendar navigation
     if (data.startsWith('calendar_')) {
@@ -457,9 +522,13 @@ function initTelegram(token) {
       session.step = 'coach_selection';
       userSessions[chatId] = session;
 
-      // Load coaches for selection
-      const config = loadConfig();
-      const coaches = config?.restaurant?.coaches || [];
+      const coachService = require('./coachService');
+      let coaches = [];
+      try {
+        coaches = await coachService.listPublicCoaches();
+      } catch (_) {
+        coaches = [];
+      }
 
       if (coaches.length === 0) {
         // No coaches configured, skip to confirmation
@@ -497,9 +566,13 @@ function initTelegram(token) {
       const session = userSessions[chatId] || {};
       
       if (coachId === 'any') {
-        // Auto-assign a random available coach instead of leaving unassigned
-        const cfg = loadConfig();
-        const allCoaches = cfg?.restaurant?.coaches || [];
+        const coachService = require('./coachService');
+        let allCoaches = [];
+        try {
+          allCoaches = await coachService.listPublicCoaches();
+        } catch (_) {
+          allCoaches = [];
+        }
         const available = allCoaches.filter(c => c.status === 'available');
         if (available.length > 0) {
           const pick = available[Math.floor(Math.random() * available.length)];
@@ -511,8 +584,13 @@ function initTelegram(token) {
         }
         session.coachPreference = 'any';
       } else {
-        const config = loadConfig();
-        const coaches = config?.restaurant?.coaches || [];
+        const coachService = require('./coachService');
+        let coaches = [];
+        try {
+          coaches = await coachService.listPublicCoaches();
+        } catch (_) {
+          coaches = [];
+        }
         const selectedCoach = coaches.find(c => c.id === coachId);
         if (selectedCoach) {
           session.coachId = selectedCoach.id;
@@ -697,6 +775,8 @@ function initTelegram(token) {
     // Log inbound message
     const _username = msg.from.username ? `@${msg.from.username}` : null;
     if (_username) chatUsernames[String(chatId)] = _username;
+    console.log(`[Telegram] Message from ${chatId} (${_username || 'no user'}): "${text}"`);
+
     logMessage({
       platform: 'telegram',
       chatId,
@@ -706,7 +786,9 @@ function initTelegram(token) {
     }).catch(() => {});
 
     // Authorization
-    if (!isAllowedUser(msg.chat)) {
+    const allowed = isAllowedUser(msg.chat);
+    console.log(`[Telegram] Authorization for ${chatId}: ${allowed ? 'ALLOWED' : 'DENIED'} (Allowed list: ${JSON.stringify(ALLOWED_USERS)})`);
+    if (!allowed) {
       bot.sendMessage(chatId, '⛔ You are not authorized to use this bot.');
       return;
     }
@@ -730,15 +812,15 @@ function initTelegram(token) {
     }
 
     // Always handle these commands first (they override any session)
-    if ([
-      '/start', '📋 Menu', '/menu',
-      '🎓 Book Session', '📅 Book a Table', '/book',
-      '📅 View Schedule', '/schedule',
-      '❌ Cancel Booking', '/cancel',
-      '📋 My Bookings', '/mybookings',
-      '💬 Ask a Question', '/ask',
-      '☎️ Contact', '/contact'
-    ].includes(text)) {
+    const isBookCmd    = text === '/book' || text.includes('Book Session') || text.includes('Book a Table');
+    const isSchedule   = text === '/schedule' || text.includes('View Schedule');
+    const isCancel     = text === '/cancel' || text.includes('Cancel Booking');
+    const isMyBookings = text === '/mybookings' || text.includes('My Bookings');
+    const isAsk        = text === '/ask' || text.includes('Ask a Question');
+    const isContact    = text === '/contact' || text.includes('Contact');
+    const isMenu       = text === '/start' || text === '/menu' || text.includes('Menu');
+
+    if (isBookCmd || isSchedule || isCancel || isMyBookings || isAsk || isContact || isMenu) {
       delete userSessions[chatId];
 
       // Dismiss keyboard
@@ -749,42 +831,43 @@ function initTelegram(token) {
       return;
     }
 
-    if (text === '/start' || text === '📋 Menu' || text === '/menu') {
+    if (isMenu) {
         console.log(`[Menu] Requested by chatId=${chatId}, text="${text}"`);
         const menuResponse = getMenuText();
         console.log(`[Menu] Response length: ${menuResponse.length}`);
-        // First remove any old reply keyboard, then show menu with inline buttons
-        bot.sendMessage(chatId, menuResponse, { parse_mode: 'Markdown' }).then(() => {
-          console.log(`[Menu] Sent successfully to ${chatId}`);
-          showMainMenu(chatId);
+        // Show main menu with BOTH inline and reply keyboard for maximum reliability
+        bot.sendMessage(chatId, menuResponse, { 
+          parse_mode: 'Markdown',
+          reply_markup: mainInlineKeyboard.reply_markup 
+        }).then(() => {
+          showMainMenu(chatId, 'Quick Access Menu:');
         }).catch(err => {
           console.error('[Menu] Send error:', err.message);
         });
         return;
       }
 
-      if (text === '🎓 Book Session' || text === '📅 Book a Table' || text === '/book') {
+      if (isBookCmd) {
         userSessions[chatId] = { step: 'booking_date' };
         const now = moment();
         showCalendar(chatId, now.year(), now.month());
         return;
       }
 
-      if (text === '📅 View Schedule' || text === '/schedule') {
+      if (isSchedule) {
         const menuResponse = getMenuText();
         bot.sendMessage(chatId, menuResponse, { parse_mode: 'Markdown' });
         return;
       }
 
-      if (text === '💬 Ask a Question' || text === '/ask') {
+      if (isAsk) {
         bot.sendMessage(chatId, 'Please type your question and I will do my best to help you. 😊');
-        // Next message will fall through to the smart Q&A handler
         return;
       }
 
-      if (text === '☎️ Contact' || text === '/contact') {
+      if (isContact) {
         const config = loadConfig();
-        const r = config?.restaurant || {};
+        const r = config?.restaurant || config || {};
         let contactMsg = `<b>📞 Contact Us</b>\n\n`;
         if (r.name)    contactMsg += `🏢 <b>${r.name}</b>\n`;
         if (r.phone)   contactMsg += `📱 ${r.phone}\n`;
@@ -798,7 +881,7 @@ function initTelegram(token) {
         return;
       }
 
-      if (text === '📋 My Bookings' || text === '/mybookings') {
+      if (isMyBookings) {
         const phone = chatId.toString();
         const username = msg.from.username ? `@${msg.from.username}` : null;
         const bookings = await getAllBookings();
@@ -822,7 +905,7 @@ function initTelegram(token) {
         return;
       }
 
-      if (text === '❌ Cancel Booking' || text === '/cancel') {
+      if (isCancel) {
         const phone = chatId.toString();
         const username = msg.from.username ? `@${msg.from.username}` : null;
         const bookings = await getAllBookings();
@@ -859,7 +942,7 @@ function initTelegram(token) {
       const restaurant = config?.restaurant || {};
       
       // First try smart Q&A keyword matching
-      const smartAnswer = getSmartAnswer(text);
+      const smartAnswer = await getSmartAnswer(text);
       if (smartAnswer) {
         await bot.sendMessage(chatId, smartAnswer, { parse_mode: 'HTML' });
         return;
@@ -868,7 +951,16 @@ function initTelegram(token) {
       // If AI is enabled, try Gemini with tool-calling support
       if (restaurant.aiEnabled && process.env.GOOGLE_GEMINI_API_KEY) {
         try {
-          const systemPrompt = GeminiChatbot.generateSystemPrompt(restaurant);
+          let coachesForPrompt = [];
+          try {
+            coachesForPrompt = await require('./coachService').listPublicCoaches();
+          } catch (_) {
+            coachesForPrompt = [];
+          }
+          const systemPrompt = GeminiChatbot.generateSystemPrompt({
+            ...restaurant,
+            coaches: coachesForPrompt
+          });
           const geminiBot = new GeminiChatbot(process.env.GOOGLE_GEMINI_API_KEY, restaurant.aiModel || 'gemini-2.5-flash');
           const aiResponse = await geminiBot.chatWithTools(text, systemPrompt, toolDeclarations, executeTool);
           if (aiResponse) {
@@ -981,7 +1073,7 @@ function initTelegram(token) {
     // Typed fallback during active session
     const session = userSessions[chatId];
     const config = loadConfig();
-    const restaurant = config?.restaurant || {};
+    const restaurant = config?.restaurant || config || {};
 
     // Date typing
     if (session.step === 'booking_date') {
@@ -1145,7 +1237,10 @@ function initTelegram(token) {
   }
 
   bot.on('polling_error', (error) => {
-    console.error('Telegram polling error:', error.message);
+    console.error(`[Telegram] Polling Error: ${error.message}`);
+    if (error.message.includes('409 Conflict')) {
+      console.error('CRITICAL: Multiple bot instances detected. Please check for zombie processes.');
+    }
   });
 
   console.log('Telegram Bot is ready and listening!');

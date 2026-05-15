@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('dotenv').config({ override: true });
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -11,8 +11,10 @@ const {
   createUnavailability,
   getUnavailability,
   deleteUnavailability,
-  dbReady
+  dbReady,
+  refreshCoachCache
 } = require('./booking');
+const coachService = require('./coachService');
 const { loadConfig, saveConfig } = require('./config');
 const { getPendingQuestions, getAllQuestions, markAsAnswered } = require('./unanswered');
 const { getConversations, getMessages } = require('./chatlog');
@@ -69,6 +71,137 @@ app.get('/api/bookings', async (req, res) => {
     res.json(bookings);
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
+
+// Coaches (SQLite — not stored in config.json)
+app.get('/api/coaches', async (req, res) => {
+  try {
+    const includeInactive = req.query.all === '1';
+    const rows = includeInactive
+      ? await coachService.getAllCoachesAnyStatus()
+      : await coachService.getAllCoaches();
+    const list = rows.map((row) => {
+      const pub = coachService.coachRowToPublic(row);
+      return {
+        ...pub,
+        has_notification_bot: !!(row.telegram_bot_token && String(row.telegram_bot_token).trim()),
+        coach_telegram_linked: !!(row.telegram_chat_id && String(row.telegram_chat_id).trim())
+      };
+    });
+    res.json(list);
+  } catch (error) {
+    console.error('[API /coaches GET]', error);
+    res.status(500).json({ error: 'Failed to fetch coaches' });
+  }
+});
+
+app.get('/api/coaches/:id', async (req, res) => {
+  try {
+    const row = await coachService.getCoach(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+    const pub = coachService.coachRowToPublic(row);
+    const hasTok = !!(row.telegram_bot_token && String(row.telegram_bot_token).trim());
+    res.json({
+      ...pub,
+      has_notification_bot: hasTok,
+      coach_telegram_linked: !!(row.telegram_chat_id && String(row.telegram_chat_id).trim())
+    });
+  } catch (error) {
+    console.error('[API /coaches/:id GET]', error);
+    res.status(500).json({ error: 'Failed to load coach' });
+  }
+});
+
+/**
+ * Send a one-off test message using the coach's notification bot (token + saved chat_id from /start).
+ * Uses HTTPS API so it works even if the bot was not loaded at server startup.
+ */
+app.post('/api/coaches/:id/test-notification', async (req, res) => {
+  try {
+    const axios = require('axios');
+    const row = await coachService.getCoach(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Coach not found' });
+    }
+    const token = (row.telegram_bot_token || '').trim();
+    const chatId = (row.telegram_chat_id || '').trim();
+    if (!token) {
+      return res.status(400).json({ error: 'No Telegram bot token configured. Paste a token in the coach form and save.' });
+    }
+    if (!chatId) {
+      return res.status(400).json({
+        error:
+          'Coach chat ID not registered yet. Open this coach’s bot in Telegram and send /start, then try again.'
+      });
+    }
+    const text =
+      (req.body && req.body.message) ||
+      '✅ Test notification: your coach booking bot is reaching you. Bookings will appear here.';
+    await axios.post(`https://api.telegram.org/bot${token}/sendMessage`, {
+      chat_id: chatId,
+      text
+    });
+    res.json({ success: true, message: 'Test message sent via coach bot' });
+  } catch (error) {
+    const msg = error.response?.data?.description || error.message;
+    console.error('[API /coaches/:id/test-notification]', msg);
+    res.status(500).json({ error: msg || 'Failed to send test message' });
+  }
+});
+
+app.post('/api/coaches', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const id = (body.id || '').trim();
+    const name = (body.name || '').trim();
+    if (!name) {
+      return res.status(400).json({ error: 'name is required' });
+    }
+    const coachId = id || `coach_${Date.now()}`;
+    const availability = body.availability && typeof body.availability === 'object' ? body.availability : {};
+    const specialties = Array.isArray(body.specialties) ? body.specialties : [];
+    const profile_json = JSON.stringify({
+      specialties,
+      availability,
+      email: body.email || ''
+    });
+    const is_active = body.status === 'unavailable' ? 0 : 1;
+
+    const payload = {
+      id: coachId,
+      name,
+      phone: body.phone || '',
+      email: body.email || '',
+      profile_json,
+      is_active
+    };
+    if (body.clear_coach_bot_token === true) {
+      payload.telegram_bot_token = '';
+    } else if (typeof body.telegram_bot_token === 'string' && body.telegram_bot_token.trim() !== '') {
+      payload.telegram_bot_token = body.telegram_bot_token.trim();
+    }
+
+    await coachService.upsertCoach(payload);
+    refreshCoachCache();
+    res.json({ success: true, id: coachId });
+  } catch (error) {
+    console.error('[API /coaches POST]', error);
+    res.status(500).json({ error: error.message || 'Failed to save coach' });
+  }
+});
+
+app.delete('/api/coaches/:id', async (req, res) => {
+  try {
+    const ok = await coachService.setCoachActive(req.params.id, false);
+    if (!ok) return res.status(404).json({ error: 'Coach not found' });
+    refreshCoachCache();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[API /coaches DELETE]', error);
+    res.status(500).json({ error: 'Failed to remove coach' });
   }
 });
 

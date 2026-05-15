@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Bookings — Admin</title>
+  <script src="api.js"></script>
   <style>
     /* ─── Design System ────────────────────────────────────────
        Style: Professional BI Dashboard (dark sidebar)
@@ -291,9 +292,9 @@
 
     async function loadCoachesList() {
       try {
-        const res = await fetch('/api/config');
-        const cfg = await res.json();
-        _coaches = (cfg.restaurant?.coaches || []).filter(c => c.status === 'available');
+        const res = await fetch('/api/coaches');
+        const list = await res.json();
+        _coaches = (list || []).filter(c => c.status === 'available');
       } catch (e) { _coaches = []; }
     }
 

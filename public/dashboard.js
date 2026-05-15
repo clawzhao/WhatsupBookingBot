@@ -3,7 +3,7 @@ const ReactDOM = window.ReactDOM;
 const { useState, useEffect } = React;
 
 // API base URL
-const API_BASE = 'http://localhost:3000';
+const API_BASE = 'http://127.0.0.1:3000';
 
 function Dashboard() {
   const [currentPage, setCurrentPage] = useState('dashboard');

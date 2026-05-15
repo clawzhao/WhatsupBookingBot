@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Coach Schedule — Admin</title>
+  <script src="api.js"></script>
   <style>
     /* Design System */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -457,16 +458,15 @@
   </div>
 
   <script>
-    let _currentConfig = {};
+    let _coachesList = [];
 
     async function loadCoaches() {
       try {
-        const response = await fetch('/api/config');
-        _currentConfig = await response.json();
-        const coaches = _currentConfig.restaurant?.coaches || [];
+        const response = await fetch('/api/coaches');
+        _coachesList = await response.json();
 
         const select = document.getElementById('coach-select');
-        const options = coaches.map(c => `<option value="${c.id}">${c.name}</option>`);
+        const options = _coachesList.map(c => `<option value="${c.id}">${c.name}</option>`);
         select.innerHTML = '<option value="">Select a coach...</option>' + options.join('');
       } catch (error) {
         console.error('Failed to load coaches:', error);
@@ -504,8 +504,7 @@
         return;
       }
 
-      const coaches = _currentConfig.restaurant?.coaches || [];
-      const coach = coaches.find(c => c.id === coachId);
+      const coach = _coachesList.find(c => c.id === coachId);
       if (!coach) return;
 
       try {
@@ -605,11 +604,9 @@
     // ─── Unavailability Modal ──────────────────────────────────────
 
     function openUnavailModal(preCoachId, preDate) {
-      // Populate coach dropdown from config
-      const coaches = _currentConfig.restaurant?.coaches || [];
       const umCoach = document.getElementById('um-coach');
       umCoach.innerHTML = '<option value="">Select a coach…</option>' +
-        coaches.map(c => `<option value="${c.id}" data-name="${c.name}">${c.name}</option>`).join('');
+        _coachesList.map(c => `<option value="${c.id}" data-name="${c.name}">${c.name}</option>`).join('');
       if (preCoachId) umCoach.value = preCoachId;
       else {
         const sel = document.getElementById('coach-select').value;
