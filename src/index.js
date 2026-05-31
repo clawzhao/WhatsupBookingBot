@@ -4,6 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const { initWhatsApp } = require('./whatsapp');
 const { initTelegram } = require('./telegram');
+const { initOpenWA, sendMessage: openWASend, getOpenWAStatus } = require('./openwa');
 const { initCoachBots, getCoachBotStatus } = require('./coachBots');
 const {
   getAllBookings,
@@ -47,6 +48,15 @@ app.get('/api/config', (req, res) => {
 
 app.post('/api/config', (req, res) => {
   const newConfig = req.body;
+  const currentConfig = loadConfig();
+  
+  // Preserve AI API key if empty in new config
+  if (newConfig?.restaurant && currentConfig?.restaurant) {
+    if (!newConfig.restaurant.aiApiKey && currentConfig.restaurant.aiApiKey) {
+      newConfig.restaurant.aiApiKey = currentConfig.restaurant.aiApiKey;
+    }
+  }
+
   if (saveConfig(newConfig)) {
     // Set Gemini API key to environment if provided
     if (newConfig?.restaurant?.aiApiKey) {
@@ -337,12 +347,8 @@ app.post('/api/coach-emergency/notify', async (req, res) => {
       return res.status(400).json({ error: 'coachName and affectedCustomers array are required' });
     }
 
-    const { getBot } = require('./telegram');
-    const bot = getBot();
-    
-    if (!bot) {
-      return res.status(503).json({ error: 'Telegram bot not initialized' });
-    }
+    const cfg = loadConfig();
+    const activeChannel = cfg?.restaurant?.messaging?.channel || cfg?.messaging?.channel || 'telegram';
 
     let notificationsSent = 0;
     let notificationsFailed = 0;
@@ -350,18 +356,24 @@ app.post('/api/coach-emergency/notify', async (req, res) => {
 
     for (const customer of affectedCustomers) {
       try {
-        if (customer.chatId) {
-          const message = 
-            `⚠️ *Important Notice*\n\n` +
-            `Your coach ${coachName} is unavailable on ${date}.\n\n` +
-            `Your booking at ${customer.bookingTime} on ${customer.bookingDate} is affected.\n\n` +
-            `Options:\n` +
-            `1️⃣ Reschedule to a different date/time\n` +
-            `2️⃣ Switch to a different coach\n` +
-            `3️⃣ Cancel this booking\n\n` +
-            `Please reply with your preference or contact us for assistance.\n` +
-            `Reservation ID: ${customer.bookingId}`;
-          
+        const message =
+          `⚠️ Important Notice\n\n` +
+          `Your coach ${coachName} is unavailable on ${date}.\n\n` +
+          `Your booking at ${customer.bookingTime} on ${customer.bookingDate} is affected.\n\n` +
+          `Options:\n` +
+          `1. Reschedule to a different date/time\n` +
+          `2. Switch to a different coach\n` +
+          `3. Cancel this booking\n\n` +
+          `Please reply with your preference or contact us for assistance.\n` +
+          `Reservation ID: ${customer.bookingId}`;
+
+        if (activeChannel === 'whatsapp' && customer.phone) {
+          await openWASend(customer.phone, message);
+          notificationsSent++;
+        } else if (customer.chatId) {
+          const { getBot } = require('./telegram');
+          const bot = getBot();
+          if (!bot) throw new Error('Telegram bot not initialized');
           await bot.sendMessage(customer.chatId, message, { parse_mode: 'Markdown' });
           notificationsSent++;
         }
@@ -382,6 +394,33 @@ app.post('/api/coach-emergency/notify', async (req, res) => {
   } catch (error) {
     console.error('[Coach Emergency Notify] Error:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// ── OpenWA API routes ──────────────────────────────────────────────────────
+
+app.get('/api/openwa/status', async (req, res) => {
+  try {
+    const status = await getOpenWAStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/openwa/test', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone) return res.status(400).json({ error: 'phone is required' });
+    const text = message || '✅ Test message from your booking system!';
+    const ok = await openWASend(phone, text);
+    if (ok) {
+      res.json({ success: true, message: `Test message sent to ${phone}` });
+    } else {
+      res.status(502).json({ error: 'Failed to send message. Check gateway connection.' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -475,22 +514,30 @@ app.post('/api/coach-unavailability/notify', async (req, res) => {
       return res.status(400).json({ error: 'coachName and affectedBookings array are required' });
     }
 
-    const { getBot } = require('./telegram');
-    const bot = getBot();
-    if (!bot) return res.status(503).json({ error: 'Telegram bot not initialized' });
+    const cfg = loadConfig();
+    const activeChannel = cfg?.restaurant?.messaging?.channel || cfg?.messaging?.channel || 'telegram';
 
     let sent = 0, failed = 0;
     for (const b of affectedBookings) {
-      if (!b.chatId) continue;
+      if (!b.chatId && !b.phone) continue;
       try {
         const msg =
-          `⚠️ *Schedule Change Notice*\n\n` +
-          `Your coach *${coachName}* is unavailable on *${b.date}* at *${b.time}*.\n\n` +
-          `📋 Reason: ${reason || 'Unavailable'}\n` +
-          `📌 Booking ID: ${b.id}\n\n` +
-          `Please reply or contact us to reschedule or choose another coach.`;
-        await bot.sendMessage(b.chatId, msg, { parse_mode: 'Markdown' });
-        sent++;
+          `⚠️ Schedule Change Notice\n\n` +
+          `Your coach ${coachName} is unavailable on ${b.date} at ${b.time}.\n\n` +
+          `Reason: ${reason || 'Unavailable'}\n` +
+          `Booking ID: ${b.id}\n\n` +
+          `Please contact us to reschedule or choose another coach.`;
+
+        if (activeChannel === 'whatsapp' && b.phone) {
+          const ok = await openWASend(b.phone, msg);
+          if (ok) { sent++; } else { failed++; }
+        } else if (b.chatId) {
+          const { getBot } = require('./telegram');
+          const bot = getBot();
+          if (!bot) throw new Error('Telegram bot not initialized');
+          await bot.sendMessage(b.chatId, `⚠️ *Schedule Change Notice*\n\n${msg}`, { parse_mode: 'Markdown' });
+          sent++;
+        }
       } catch (err) {
         console.error(`Failed to notify chatId ${b.chatId}:`, err.message);
         failed++;
@@ -506,21 +553,22 @@ app.post('/api/coach-unavailability/notify', async (req, res) => {
 if (require.main === module) {
   app.listen(port, async () => {
     console.log(`Server is running on http://localhost:${port}`);
-    // Initialize messaging platforms
-    const waEnabled = process.env.WHATSAPP_ENABLED !== 'false';
-    if (waEnabled) {
-      console.log('Initializing WhatsApp Client...');
-      initWhatsApp();
-    } else {
-      console.log('WhatsApp disabled (set WHATSAPP_ENABLED=true to enable)');
-    }
+    // Initialize messaging platforms based on config channel
+    const msgConfig = loadConfig();
+    const msgChannel = msgConfig?.restaurant?.messaging?.channel || msgConfig?.messaging?.channel || 'telegram';
+    console.log(`[Messaging] Active channel: ${msgChannel}`);
 
-    const tgToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (tgToken) {
-      console.log('Initializing Telegram Bot...');
-      initTelegram(tgToken);
+    if (msgChannel === 'whatsapp') {
+      console.log('[Messaging] Initializing OpenWA gateway...');
+      initOpenWA(app);
     } else {
-      console.log('Telegram disabled (set TELEGRAM_BOT_TOKEN to enable)');
+      const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (tgToken) {
+        console.log('[Messaging] Initializing Telegram Bot...');
+        initTelegram(tgToken);
+      } else {
+        console.log('[Messaging] Telegram disabled (set TELEGRAM_BOT_TOKEN to enable)');
+      }
     }
 
     const config = loadConfig();
