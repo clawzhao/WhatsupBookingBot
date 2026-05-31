@@ -392,6 +392,7 @@
         <button class="tab-btn active" onclick="showTab('business')">Business Info</button>
         <button class="tab-btn" onclick="showTab('hours')">Opening Hours</button>
         <button class="tab-btn" onclick="showTab('services')">Services</button>
+        <button class="tab-btn" onclick="showTab('messaging')">💬 Messaging</button>
         <button class="tab-btn" id="ai-tab-btn" onclick="showTab('ai')">⚡ AI Settings</button>
         <button class="tab-btn" id="qa-tab-btn" onclick="showTab('qa')">Q&A Knowledge Base</button>
       </div>
@@ -493,6 +494,58 @@
               <!-- Populated via JS -->
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- Messaging Tab -->
+      <div id="tab-messaging" class="tab-content">
+        <div class="form-card">
+          <h3 style="font-size:.95rem;font-weight:600;margin-bottom:16px;">Active Messaging Channel</h3>
+          <div class="ai-toggle-group" style="margin-bottom:20px;">
+            <span style="font-weight:600;color:var(--text-primary);">Telegram</span>
+            <label class="toggle-switch">
+              <input type="checkbox" id="cfg-msg-whatsapp" onchange="onMessagingChannelChange()">
+              <span class="toggle-slider"></span>
+            </label>
+            <span style="font-weight:600;color:var(--text-primary);">WhatsApp (OpenWA)</span>
+          </div>
+
+          <!-- Telegram panel -->
+          <div id="msg-telegram-panel">
+            <div class="form-group">
+              <label>Telegram Bot Token</label>
+              <input type="text" id="cfg-tg-token-display" disabled placeholder="Set TELEGRAM_BOT_TOKEN in .env">
+              <div class="form-group-hint">The Telegram bot token is read from the <code>.env</code> file on the server. Edit that file to change it.</div>
+            </div>
+          </div>
+
+          <!-- WhatsApp / OpenWA panel -->
+          <div id="msg-openwa-panel" style="display:none;">
+            <div class="form-group">
+              <label>Gateway URL</label>
+              <input type="text" id="cfg-openwa-url" placeholder="http://127.0.0.1:2785">
+            </div>
+            <div class="form-group">
+              <label>API Key</label>
+              <input type="password" id="cfg-openwa-key" placeholder="dev-admin-key">
+            </div>
+            <div class="form-group">
+              <label>Session Name</label>
+              <input type="text" id="cfg-openwa-session" placeholder="main">
+            </div>
+            <div class="button-group" style="margin-bottom:16px;">
+              <button class="btn-secondary" onclick="testOpenWAConnection()">🔌 Test Connection</button>
+              <span id="openwa-status-badge" style="font-size:.8rem;padding:4px 8px;border-radius:4px;"></span>
+            </div>
+            <div class="form-group">
+              <label>Send Test Message</label>
+              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+                <input type="text" id="cfg-openwa-test-phone" placeholder="Phone number e.g. 6588775526">
+                <button class="btn-primary" onclick="sendOpenWATest()">Send</button>
+              </div>
+              <div class="form-group-hint">Sends a test WhatsApp message via the OpenWA gateway.</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -630,7 +683,14 @@
         if (aiEnabled) {
           document.getElementById('cfg-ai-enabled').checked = r.aiEnabled !== false;
           setSelect('cfg-ai-model', r.aiModel || 'gemini-2.5-flash');
-          document.getElementById('cfg-ai-api-key').value = r.aiApiKey || '';
+          
+          const aiKeyInput = document.getElementById('cfg-ai-api-key');
+          if (r.aiApiKey && r.aiApiKey.trim() !== '') {
+            aiKeyInput.value = ''; // Don't show the real key for security
+            aiKeyInput.placeholder = 'Key is saved (********). Enter a new one to replace it.';
+          } else {
+            aiKeyInput.placeholder = 'Get from https://aistudio.google.com/app/apikey';
+          }
           toggleAIFields();
         }
 
@@ -642,6 +702,16 @@
 
         // Q&A Database (always populate — works for both AI and keyword matching)
         populateQA(r.qaDatabase || []);
+
+        // Messaging
+        const messaging = r.messaging || {};
+        const isWhatsapp = (messaging.channel || 'telegram') === 'whatsapp';
+        document.getElementById('cfg-msg-whatsapp').checked = isWhatsapp;
+        onMessagingChannelChange();
+        const openwa = messaging.openwa || {};
+        document.getElementById('cfg-openwa-url').value = openwa.gatewayUrl || 'http://127.0.0.1:2785';
+        document.getElementById('cfg-openwa-key').value = openwa.apiKey || '';
+        document.getElementById('cfg-openwa-session').value = openwa.sessionName || 'main';
       } catch (error) {
         console.error('Failed to load config:', error);
         showStatus('Failed to load configuration', 'error');
@@ -798,7 +868,15 @@
         aiApiKey: document.getElementById('cfg-ai-api-key').value.trim(),
         openingHours,
         menu: (_currentConfig.restaurant || _currentConfig).menu || [],
-        qaDatabase: (_currentConfig.restaurant || _currentConfig).qaDatabase || []
+        qaDatabase: (_currentConfig.restaurant || _currentConfig).qaDatabase || [],
+        messaging: {
+          channel: document.getElementById('cfg-msg-whatsapp').checked ? 'whatsapp' : 'telegram',
+          openwa: {
+            gatewayUrl: document.getElementById('cfg-openwa-url').value.trim() || 'http://127.0.0.1:2785',
+            apiKey: document.getElementById('cfg-openwa-key').value.trim() || 'dev-admin-key',
+            sessionName: document.getElementById('cfg-openwa-session').value.trim() || 'main'
+          }
+        },
       };
 
       const newConfig = _currentConfig.restaurant ? { ..._currentConfig, restaurant } : restaurant;
@@ -818,6 +896,56 @@
       } catch (error) {
         console.error('Save error:', error);
         showStatus('✗ Error saving configuration', 'error');
+      }
+    }
+
+    function onMessagingChannelChange() {
+      const isWhatsapp = document.getElementById('cfg-msg-whatsapp').checked;
+      document.getElementById('msg-telegram-panel').style.display = isWhatsapp ? 'none' : 'block';
+      document.getElementById('msg-openwa-panel').style.display = isWhatsapp ? 'block' : 'none';
+    }
+
+    async function testOpenWAConnection() {
+      const badge = document.getElementById('openwa-status-badge');
+      badge.textContent = 'Checking...';
+      badge.style.background = '#e2e8f0';
+      badge.style.color = '#64748b';
+      try {
+        const res = await fetch('/api/openwa/status');
+        const data = await res.json();
+        if (data.reachable) {
+          badge.textContent = '✓ Reachable';
+          badge.style.background = '#dcfce7';
+          badge.style.color = '#166534';
+        } else {
+          badge.textContent = '✗ Unreachable';
+          badge.style.background = '#fee2e2';
+          badge.style.color = '#991b1b';
+        }
+      } catch {
+        badge.textContent = '✗ Error';
+        badge.style.background = '#fee2e2';
+        badge.style.color = '#991b1b';
+      }
+    }
+
+    async function sendOpenWATest() {
+      const phone = document.getElementById('cfg-openwa-test-phone').value.trim();
+      if (!phone) { showStatus('Enter a phone number first', 'error'); return; }
+      try {
+        const res = await fetch('/api/openwa/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showStatus('✓ Test message sent!', 'success');
+        } else {
+          showStatus('✗ ' + (data.error || 'Failed to send'), 'error');
+        }
+      } catch {
+        showStatus('✗ Error sending test message', 'error');
       }
     }
 
