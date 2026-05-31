@@ -21,7 +21,15 @@ const testConfig = {
   menu: [
     { id: "1", category: "Starters", name: "Garlic Bread", price: 5.99 },
     { id: "2", category: "Mains", name: "Pizza", price: 12.99 }
-  ]
+  ],
+  messaging: {
+    channel: "telegram",
+    openwa: {
+      gatewayUrl: "http://127.0.0.1:2785",
+      apiKey: "dev-admin-key",
+      sessionName: "main"
+    }
+  }
 };
 
 function setupTestConfig() {
