@@ -10,6 +10,10 @@
 
 const TelegramBot = require('node-telegram-bot-api');
 const coachService = require('./coachService');
+const { getCoachBookings } = require('./booking');
+const moment = require('moment-timezone');
+const { loadConfig } = require('./config');
+const openwa = require('./openwa');
 
 /** Map of coachId -> TelegramBot instance */
 const coachBots = new Map();
@@ -22,6 +26,9 @@ const coachData = new Map();
  * Each bot listens for /start to capture the coach's chat ID.
  */
 async function initCoachBots() {
+  const config = loadConfig();
+  const channel = config?.restaurant?.messaging?.channel || config?.messaging?.channel || 'telegram';
+
   let coaches;
   try {
     coaches = await coachService.getAllCoaches();
@@ -30,6 +37,15 @@ async function initCoachBots() {
     return;
   }
 
+  if (channel === 'whatsapp') {
+    for (const coach of coaches) {
+      coachData.set(coach.id, coach);
+    }
+    console.log(`[CoachBots] WhatsApp channel active — loaded ${coaches.length} coaches, Telegram polling skipped.`);
+    return;
+  }
+
+  // Original Telegram init continues below...
   if (coaches.length === 0) {
     console.log('[CoachBots] No coaches in database. Skipping coach bot initialization.');
     return;
@@ -68,7 +84,9 @@ async function initCoachBots() {
           `👋 Welcome Coach ${coachName}!\n\n`
           + `You are now connected to the booking system. `
           + `You will receive notifications here when a customer books a session with you.\n\n`
-          + `Use /status to check your connection status.`
+          + `🔹 *Available Commands:*\n`
+          + `📅 /bookings - Check your upcoming sessions\n`
+          + `✅ /status - Check connection status`
         );
       });
 
@@ -84,6 +102,69 @@ async function initCoachBots() {
           + `Status: Connected and receiving notifications`,
           { parse_mode: 'Markdown' }
         );
+      });
+      
+      // /bookings command - shows a date picker
+      bot.onText(/\/bookings/, (msg) => {
+        const chatId = msg.chat.id;
+        const today = moment().format('YYYY-MM-DD');
+        const tomorrow = moment().add(1, 'day').format('YYYY-MM-DD');
+        
+        bot.sendMessage(chatId, "📅 *View your bookings*\n\nSelect a date below:", {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '🗓️ Today', callback_data: `coach_view_${today}` }, { text: '🗓️ Tomorrow', callback_data: `coach_view_${tomorrow}` }],
+              [{ text: '📅 Other Dates (Type YYYY-MM-DD)', callback_data: 'coach_custom_date' }]
+            ]
+          }
+        });
+      });
+
+      // Callback query handler for date selection
+      bot.on('callback_query', async (query) => {
+        const chatId = query.message.chat.id;
+        const data = query.data;
+
+        if (data.startsWith('coach_view_')) {
+          const date = data.replace('coach_view_', '');
+          const bookings = await getCoachBookings(coach.id, date);
+          
+          let response = `📅 *Bookings for ${date}*\n\n`;
+          if (bookings.length === 0) {
+            response += "_No bookings found for this date._";
+          } else {
+            bookings.forEach((b, i) => {
+              response += `${i + 1}. ⏰ *${b.time}*\n👤 Party of ${b.partySize}\n📱 Phone: \`${b.phone}\`\n\n`;
+            });
+          }
+          
+          bot.sendMessage(chatId, response, { parse_mode: 'Markdown' });
+          bot.answerCallbackQuery(query.id).catch(() => {});
+        } else if (data === 'coach_custom_date') {
+          bot.sendMessage(chatId, "Please type a date in *YYYY-MM-DD* format (e.g., 2026-05-20):", { parse_mode: 'Markdown' });
+          bot.answerCallbackQuery(query.id).catch(() => {});
+        }
+      });
+
+      // Handle typed dates
+      bot.on('message', async (msg) => {
+        if (!msg.text) return;
+        const dateMatch = msg.text.match(/^\d{4}-\d{2}-\d{2}$/);
+        if (dateMatch) {
+          const date = msg.text;
+          const bookings = await getCoachBookings(coach.id, date);
+          
+          let response = `📅 *Bookings for ${date}*\n\n`;
+          if (bookings.length === 0) {
+            response += "_No bookings found for this date._";
+          } else {
+            bookings.forEach((b, i) => {
+              response += `${i + 1}. ⏰ *${b.time}*\n👤 Party of ${b.partySize}\n📱 Phone: \`${b.phone}\`\n\n`;
+            });
+          }
+          bot.sendMessage(msg.chat.id, response, { parse_mode: 'Markdown' });
+        }
       });
 
       // Log polling errors without crashing
@@ -109,25 +190,41 @@ async function initCoachBots() {
  * @returns {Promise<boolean>} - Whether the notification was sent successfully
  */
 async function notifyCoach(coachId, message) {
+  const config = loadConfig();
+  const channel = config?.restaurant?.messaging?.channel || config?.messaging?.channel || 'telegram';
+
+  if (channel === 'whatsapp') {
+    const coach = coachData.get(coachId);
+    if (!coach) {
+      console.warn(`[CoachBots] No coach data for "${coachId}". Cannot send WhatsApp notification.`);
+      return false;
+    }
+    const phone = (coach.phone || '').trim();
+    if (!phone) {
+      console.warn(`[CoachBots] Coach "${coachId}" has no phone number configured for WhatsApp.`);
+      return false;
+    }
+    return openwa.sendMessage(phone, message);
+  }
+
+  // Telegram path (original)
   const bot = coachBots.get(coachId);
   const coach = coachData.get(coachId);
 
   if (!bot) {
-    console.warn(`[CoachBots] No bot found for coach "${coachId}". Cannot send notification.`);
+    console.warn(`[CoachBots] No Telegram bot found for coach "${coachId}".`);
     return false;
   }
-
   if (!coach || !coach.telegram_chat_id) {
-    console.warn(`[CoachBots] Coach "${coachId}" has no chat ID. Coach must start the bot first with /start.`);
+    console.warn(`[CoachBots] Coach "${coachId}" has no Telegram chat ID. Coach must send /start first.`);
     return false;
   }
-
   try {
     await bot.sendMessage(coach.telegram_chat_id, message, { parse_mode: 'Markdown' });
-    console.log(`[CoachBots] Notification sent to coach "${coachId}" (${coach.name})`);
+    console.log(`[CoachBots] Telegram notification sent to coach "${coachId}" (${coach.name})`);
     return true;
   } catch (err) {
-    console.error(`[CoachBots] Failed to send notification to coach "${coachId}":`, err.message);
+    console.error(`[CoachBots] Failed to send Telegram notification to coach "${coachId}":`, err.message);
     return false;
   }
 }
