@@ -412,12 +412,28 @@ app.post('/api/openwa/test', async (req, res) => {
   try {
     const { phone, message } = req.body;
     if (!phone) return res.status(400).json({ error: 'phone is required' });
+
+    // Validate phone digits
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits || digits.length < 7) {
+      return res.status(400).json({ error: `Invalid phone number "${phone}". Enter digits only, e.g. 6593287628` });
+    }
+
+    // Check gateway is reachable first
+    const status = await getOpenWAStatus();
+    if (!status.reachable) {
+      return res.status(503).json({ error: 'OpenWA gateway is not reachable at ' + status.gatewayUrl });
+    }
+    if (!status.session) {
+      return res.status(503).json({ error: 'No active WhatsApp session found. Check the gateway.' });
+    }
+
     const text = message || '✅ Test message from your booking system!';
-    const ok = await openWASend(phone, text);
+    const ok = await openWASend(digits, text);
     if (ok) {
-      res.json({ success: true, message: `Test message sent to ${phone}` });
+      res.json({ success: true, message: `Message sent to +${digits} via session ${status.session.name}` });
     } else {
-      res.status(502).json({ error: 'Failed to send message. Check gateway connection.' });
+      res.status(502).json({ error: `Gateway rejected the message to +${digits}. Check the number is a valid WhatsApp account.` });
     }
   } catch (err) {
     res.status(500).json({ error: err.message });

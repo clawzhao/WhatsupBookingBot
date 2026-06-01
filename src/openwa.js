@@ -53,6 +53,10 @@ async function sendMessage(phone, text) {
     return false;
   }
   const digits = String(phone).replace(/\D/g, '');
+  if (!digits || digits.length < 7 || digits.length > 15) {
+    console.error(`[OpenWA] Invalid phone number: "${phone}" (digits: "${digits}")`);
+    return false;
+  }
   const chatId = `${digits}@c.us`;
   const url = `${gatewayUrl}/api/sessions/${sessionId}/messages/send-text`;
   try {
@@ -63,7 +67,8 @@ async function sendMessage(phone, text) {
     logMessage({ platform: 'whatsapp', chatId: digits, direction: 'outbound', message: text.slice(0, 2000), msgType: 'text' }).catch(() => {});
     return true;
   } catch (err) {
-    console.error('[OpenWA] sendMessage failed:', err.response?.data?.message || err.message);
+    const gatewayMsg = err.response?.data?.message || err.message;
+    console.error(`[OpenWA] sendMessage to ${digits} failed: ${gatewayMsg}`);
     return false;
   }
 }

@@ -938,22 +938,24 @@
     }
 
     async function sendOpenWATest() {
-      const phone = document.getElementById('cfg-openwa-test-phone').value.trim();
-      if (!phone) { showStatus('Enter a phone number first', 'error'); return; }
+      const raw = document.getElementById('cfg-openwa-test-phone').value.trim();
+      if (!raw) { showStatus('Enter a phone number first (e.g. 6593287628)', 'error'); return; }
+      const digits = raw.replace(/\D/g, '');
+      if (digits.length < 7) { showStatus('Phone number too short — enter country code + number, e.g. 6593287628', 'error'); return; }
       try {
         const res = await fetch('/api/openwa/test', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone })
+          body: JSON.stringify({ phone: digits })
         });
         const data = await res.json();
         if (res.ok) {
-          showStatus('✓ Test message sent!', 'success');
+          showStatus('✓ ' + data.message, 'success');
         } else {
           showStatus('✗ ' + (data.error || 'Failed to send'), 'error');
         }
       } catch {
-        showStatus('✗ Error sending test message', 'error');
+        showStatus('✗ Server not reachable — is the booking server running?', 'error');
       }
     }
 
