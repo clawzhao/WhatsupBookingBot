@@ -9,6 +9,9 @@ const { toolDeclarations, executeTool } = require('./bot-skills');
 
 const userSessions = {};
 
+// Cache the discovered session ID so we don't call /api/sessions on every message
+let _cachedSessionId = null;
+
 function getOpenWAConfig() {
   const config = loadConfig();
   const openwa = config?.restaurant?.messaging?.openwa || config?.messaging?.openwa || {};
@@ -19,11 +22,39 @@ function getOpenWAConfig() {
   };
 }
 
+// Discover the first ready session ID from the gateway.
+// The gateway uses UUIDs, not session names, in the URL path.
+async function discoverSessionId() {
+  if (_cachedSessionId) return _cachedSessionId;
+  const { gatewayUrl, apiKey } = getOpenWAConfig();
+  try {
+    const res = await axios.get(`${gatewayUrl}/api/sessions`, {
+      headers: { 'X-API-Key': apiKey },
+      timeout: 5000
+    });
+    const sessions = Array.isArray(res.data) ? res.data : [];
+    const ready = sessions.find(s => s.status === 'ready') || sessions[0];
+    if (ready) {
+      _cachedSessionId = ready.id;
+      console.log(`[OpenWA] Using session: ${ready.name} (${ready.id}), phone: ${ready.phone}`);
+      return ready.id;
+    }
+  } catch (err) {
+    console.error('[OpenWA] Failed to discover session ID:', err.message);
+  }
+  return null;
+}
+
 async function sendMessage(phone, text) {
-  const { gatewayUrl, apiKey, sessionName } = getOpenWAConfig();
+  const { gatewayUrl, apiKey } = getOpenWAConfig();
+  const sessionId = await discoverSessionId();
+  if (!sessionId) {
+    console.error('[OpenWA] No active session found. Cannot send message.');
+    return false;
+  }
   const digits = String(phone).replace(/\D/g, '');
   const chatId = `${digits}@c.us`;
-  const url = `${gatewayUrl}/api/sessions/${sessionName}/messages/send-text`;
+  const url = `${gatewayUrl}/api/sessions/${sessionId}/messages/send-text`;
   try {
     await axios.post(url, { chatId, text }, {
       headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
@@ -32,23 +63,34 @@ async function sendMessage(phone, text) {
     logMessage({ platform: 'whatsapp', chatId: digits, direction: 'outbound', message: text.slice(0, 2000), msgType: 'text' }).catch(() => {});
     return true;
   } catch (err) {
-    console.error('[OpenWA] sendMessage failed:', err.message);
+    console.error('[OpenWA] sendMessage failed:', err.response?.data?.message || err.message);
     return false;
   }
 }
 
 async function getOpenWAStatus() {
-  const { gatewayUrl, sessionName } = getOpenWAConfig();
+  const { gatewayUrl } = getOpenWAConfig();
   const config = loadConfig();
   const channel = config?.restaurant?.messaging?.channel || config?.messaging?.channel || 'telegram';
   let reachable = false;
+  let sessionInfo = null;
   try {
-    await axios.get(`${gatewayUrl}/api/health`, { timeout: 3000 });
-    reachable = true;
+    const { apiKey } = getOpenWAConfig();
+    const res = await axios.get(`${gatewayUrl}/api/sessions`, {
+      headers: { 'X-API-Key': apiKey },
+      timeout: 3000
+    });
+    const sessions = Array.isArray(res.data) ? res.data : [];
+    const ready = sessions.find(s => s.status === 'ready') || sessions[0];
+    if (ready) {
+      reachable = true;
+      sessionInfo = { id: ready.id, name: ready.name, phone: ready.phone, status: ready.status };
+      _cachedSessionId = ready.id;
+    }
   } catch (_) {
     reachable = false;
   }
-  return { enabled: channel === 'whatsapp', gatewayUrl, sessionName, reachable };
+  return { enabled: channel === 'whatsapp', gatewayUrl, reachable, session: sessionInfo };
 }
 
 async function getSmartAnswer(question) {
@@ -447,22 +489,67 @@ async function handleWhatsAppMessage(phone, text) {
   await sendMessage(phone, mainMenuText());
 }
 
+// Register our webhook URL with the OpenWA gateway automatically
+async function registerWebhookWithGateway(webhookUrl) {
+  const { gatewayUrl, apiKey } = getOpenWAConfig();
+  const sessionId = await discoverSessionId();
+  if (!sessionId) return;
+
+  try {
+    // Check existing webhooks to avoid duplicates
+    const existing = await axios.get(`${gatewayUrl}/api/sessions/${sessionId}/webhooks`, {
+      headers: { 'X-API-Key': apiKey },
+      timeout: 5000
+    });
+    const webhooks = Array.isArray(existing.data) ? existing.data : [];
+    const alreadyRegistered = webhooks.some(w => w.url === webhookUrl && w.active);
+    if (alreadyRegistered) {
+      console.log(`[OpenWA] Webhook already registered: ${webhookUrl}`);
+      return;
+    }
+
+    // Register new webhook for message.received events
+    await axios.post(`${gatewayUrl}/api/sessions/${sessionId}/webhooks`, {
+      url: webhookUrl,
+      events: ['message.received'],
+      retryCount: 3
+    }, {
+      headers: { 'Content-Type': 'application/json', 'X-API-Key': apiKey },
+      timeout: 5000
+    });
+    console.log(`[OpenWA] Webhook registered with gateway: ${webhookUrl}`);
+  } catch (err) {
+    console.error('[OpenWA] Could not auto-register webhook:', err.response?.data?.message || err.message);
+  }
+}
+
 function initOpenWA(app) {
   console.log('[OpenWA] Registering webhook at POST /api/openwa/webhook');
 
   app.post('/api/openwa/webhook', async (req, res) => {
-    res.sendStatus(200);
+    res.sendStatus(200); // Always ack immediately
     try {
       const payload = req.body;
+
+      // Guide payload format: { event, sessionId, data: { from, body, isGroup, ... } }
+      // Also handle flat payloads for compatibility
+      if (payload?.event && payload.event !== 'message.received') return;
+
       const data = payload?.data || payload;
-      const isGroup = data?.isGroupMsg || data?.id?.remote?.includes('@g.us') || false;
+
+      // Use isGroup from guide (not isGroupMsg)
+      const isGroup = data?.isGroup || data?.isGroupMsg || String(data?.from || '').includes('@g.us') || false;
       if (isGroup) return;
 
-      const from = data?.from || data?.chatId || '';
+      // fromMe messages (bot's own sends) — ignore
+      if (data?.fromMe === true) return;
+
+      const from = data?.from || data?.chatId || data?.senderPhone || '';
       const body = data?.body || data?.text || '';
       if (!from || !body) return;
 
-      const phone = String(from).replace('@c.us', '').replace(/\D/g, '');
+      // Extract digits only — handles "6588123456@c.us" or plain number
+      const phone = String(from).replace(/@c\.us$/i, '').replace(/\D/g, '');
       if (!phone) return;
 
       logMessage({ platform: 'whatsapp', chatId: phone, direction: 'inbound', message: body.slice(0, 2000), msgType: 'text' }).catch(() => {});
@@ -475,6 +562,11 @@ function initOpenWA(app) {
   });
 
   console.log('[OpenWA] Webhook registered. Ready for inbound messages.');
+
+  // Auto-register our webhook URL with the gateway (non-blocking)
+  const port = process.env.PORT || 3000;
+  const webhookUrl = `http://127.0.0.1:${port}/api/openwa/webhook`;
+  registerWebhookWithGateway(webhookUrl).catch(() => {});
 }
 
 module.exports = { sendMessage, getOpenWAStatus, initOpenWA, userSessions };

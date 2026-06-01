@@ -913,10 +913,14 @@
       try {
         const res = await fetch('/api/openwa/status');
         const data = await res.json();
-        if (data.reachable) {
-          badge.textContent = '✓ Reachable';
+        if (data.reachable && data.session) {
+          badge.textContent = `✓ Connected — ${data.session.name} (+${data.session.phone})`;
           badge.style.background = '#dcfce7';
           badge.style.color = '#166534';
+        } else if (data.reachable) {
+          badge.textContent = '✓ Gateway reachable (no active session)';
+          badge.style.background = '#fef9c3';
+          badge.style.color = '#854d0e';
         } else {
           badge.textContent = '✗ Unreachable';
           badge.style.background = '#fee2e2';
