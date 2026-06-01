@@ -539,11 +539,15 @@
             </div>
             <div class="form-group">
               <label>Send Test Message</label>
-              <div style="display:grid;grid-template-columns:1fr auto;gap:8px;">
+              <div style="display:grid;grid-template-columns:1fr auto auto;gap:8px;">
                 <input type="text" id="cfg-openwa-test-phone" placeholder="Phone number e.g. 6588775526">
                 <button class="btn-primary" onclick="sendOpenWATest()">Send</button>
+                <button class="btn-secondary" onclick="simulateInbound()" title="Simulate a customer sending you a message — useful when your phone = bot number">🧪 Simulate</button>
               </div>
-              <div class="form-group-hint">Sends a test WhatsApp message via the OpenWA gateway.</div>
+              <div class="form-group-hint">
+                <b>Send</b> — pushes a real WhatsApp message to that number. &nbsp;
+                <b>Simulate</b> — pretends that number sent "menu" to the bot (for testing when your phone number = bot number).
+              </div>
             </div>
           </div>
         </div>
@@ -950,6 +954,26 @@
         }
       } catch {
         showStatus('✗ Error sending test message', 'error');
+      }
+    }
+
+    async function simulateInbound() {
+      const phone = document.getElementById('cfg-openwa-test-phone').value.trim();
+      if (!phone) { showStatus('Enter a phone number to simulate as the sender', 'error'); return; }
+      try {
+        const res = await fetch('/api/openwa/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone, message: 'menu' })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showStatus(`✓ Simulated inbound "menu" from ${phone} — bot replied via WhatsApp`, 'success');
+        } else {
+          showStatus('✗ ' + (data.error || 'Simulation failed'), 'error');
+        }
+      } catch {
+        showStatus('✗ Error running simulation', 'error');
       }
     }
 

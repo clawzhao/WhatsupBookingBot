@@ -424,6 +424,21 @@ app.post('/api/openwa/test', async (req, res) => {
   }
 });
 
+// Simulate an inbound WhatsApp message without needing a real phone
+// Useful for testing when your phone number = bot number
+app.post('/api/openwa/simulate', async (req, res) => {
+  try {
+    const { phone, message } = req.body;
+    if (!phone || !message) return res.status(400).json({ error: 'phone and message are required' });
+    const { handleWhatsAppMessage } = require('./openwa');
+    console.log(`[OpenWA] Simulated inbound from ${phone}: "${message}"`);
+    await handleWhatsAppMessage(phone, message);
+    res.json({ success: true, info: `Processed "${message}" as if sent from ${phone}` });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = { app };
 
 // ============ ASSIGN COACH TO BOOKING ============

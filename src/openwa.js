@@ -569,4 +569,4 @@ function initOpenWA(app) {
   registerWebhookWithGateway(webhookUrl).catch(() => {});
 }
 
-module.exports = { sendMessage, getOpenWAStatus, initOpenWA, userSessions };
+module.exports = { sendMessage, getOpenWAStatus, initOpenWA, handleWhatsAppMessage, userSessions };
