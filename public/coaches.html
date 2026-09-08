@@ -600,11 +600,15 @@
         if (res.ok) {
           const detail = await res.json();
           const hintEl = document.getElementById('coach-tg-hint');
+          const tokenInput = document.getElementById('coach-telegram-token');
+          
           if (detail.has_notification_bot) {
-            hintEl.textContent = detail.coach_telegram_linked
-              ? '✓ Bot token is saved and this coach has sent /start — you can send a test below.'
-              : 'Token saved. Open this coach’s bot in Telegram and send /start, then use “Send test”.';
+            tokenInput.placeholder = 'Token is saved (********). Enter a new one to replace it.';
+            hintEl.innerHTML = detail.coach_telegram_linked
+              ? '<span style="color: #2e7d32;">✅ Bot token is saved and linked (Coach sent /start).</span>'
+              : '<span style="color: #f57c00;">⚠️ Token saved. Coach must send /start to their bot to link.</span>';
           } else {
+            tokenInput.placeholder = '123456:ABC-DEF...';
             hintEl.textContent = 'No bot token saved yet. Paste a token from @BotFather to enable coach notifications.';
           }
         }

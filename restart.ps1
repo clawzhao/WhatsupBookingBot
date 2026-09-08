@@ -22,12 +22,12 @@ foreach ($port in @(3000, 5000, 5100)) {
 
 # 3. Start Node Backend
 Write-Host "Starting Node.js Backend..." -ForegroundColor Green
-Start-Process cmd -ArgumentList "/c npm start" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+Start-Process node -ArgumentList "src/index.js" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
 
 # 4. Start Public Dashboards on Ports 5000 and 5100
 Write-Host "Starting Static Dashboards..." -ForegroundColor Green
-Start-Process cmd -ArgumentList "/c npx -y serve -p 5000 public" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
-Start-Process cmd -ArgumentList "/c npx -y serve -p 5100 public" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+Start-Process npx.cmd -ArgumentList "serve -p 5000 public" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
+Start-Process npx.cmd -ArgumentList "serve -p 5100 public" -WindowStyle Hidden -WorkingDirectory $PSScriptRoot
 
 # 5. Start Flutter Admin (if available) on Port 5050 (alternative)
 if (Test-Path "flutter_admin") {

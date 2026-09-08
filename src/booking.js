@@ -281,6 +281,22 @@ function cancelBooking(phone, id) {
   });
 }
 
+function getCoachBookings(coachId, date) {
+  return new Promise((resolve, reject) => {
+    db.all(
+      'SELECT * FROM bookings WHERE coach_id = ? AND date = ? AND status = ? ORDER BY time ASC',
+      [coachId, date, 'confirmed'],
+      (err, rows) => {
+        if (err) {
+          console.error('[DB] Error fetching coach bookings:', err);
+          return reject(err);
+        }
+        resolve(rows || []);
+      }
+    );
+  });
+}
+
 function getAllBookings() {
   return new Promise((resolve, reject) => {
     db.all('SELECT * FROM bookings ORDER BY date DESC, time DESC', [], (err, rows) => {
@@ -366,6 +382,7 @@ module.exports = {
   deleteUnavailability,
   assignCoach,
   getCoachName,
+  getCoachBookings,
   dbReady,
   refreshCoachCache,
   db // exported for advanced test scenarios (use with caution)
